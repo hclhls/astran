@@ -459,8 +459,9 @@ int Compaction::solve(string lpSolverFile, int timeLimit) {
                 if(lp_min_val[i]>=0)
                     f << " + ";
                 else
-                    f << " - ";                
-            }
+                    f << " - ";
+            } else if ( lp_min_val[i] < 0 )
+                f << "- ";
             if ( lp_min_val[i] != 1 )
                 f << abs(lp_min_val[i]) << " ";
             
