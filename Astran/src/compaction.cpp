@@ -548,7 +548,7 @@ int Compaction::solve(string lpSolverFile, int timeLimit) {
 
     string solFileName = lp_filename + ".sol";
     
-    //remove(solFileName.c_str());
+    remove(solFileName.c_str()); //never read a solution left by an earlier run
 
     regex str_expr_scip ("(.*)scip");
     regex str_expr_highs ("(.*)highs");
@@ -578,6 +578,7 @@ int Compaction::solve(string lpSolverFile, int timeLimit) {
     
 	char line[150];
 	
+	bool infeasible=false;
 	while (fgets(line, 150, x)) {
 		istringstream s(line);
 		string n;		
@@ -588,6 +589,11 @@ int Compaction::solve(string lpSolverFile, int timeLimit) {
         if(n=="H" || n=="*")
 			cerr << n;
         
+        //"infeasible" (not "infeasibility"/"infeasibilities", which also appear in feasible solves' logs)
+        string lowerLine(line);
+        transform(lowerLine.begin(), lowerLine.end(), lowerLine.begin(), ::tolower);
+        if(lowerLine.find("infeasible")!=string::npos) infeasible=true;
+        
 		if(n=="ERROR" || n=="Time" || n=="Unable" || n=="Wrote" || n=="Optimal" || n=="Model")
 			cout << endl << line;
         //if(n=="Unable" || n=="Model")
@@ -595,6 +601,11 @@ int Compaction::solve(string lpSolverFile, int timeLimit) {
     }
     
     _pclose(x);
+    
+    if(infeasible){
+        cout << "-> The solver reported that the model is infeasible" << endl;
+        return 0;
+    }
     
     FILE* stream = fopen(solFileName.c_str(), "r");
     
@@ -610,7 +621,13 @@ int Compaction::solve(string lpSolverFile, int timeLimit) {
 		int v;
 		
 		s >> n;
-        if(n=="#") continue;
+        if(n=="#"){
+            //HiGHS also writes "# Dual solution values" and "# Basis" sections (pure LPs), with the same
+            //column names: stop at the end of the primal values so they don't overwrite them.
+            string section(line);
+            if(section.find("Dual solution")!=string::npos || section.find("Basis")!=string::npos) break;
+            continue;
+        }
         
 		s >> tmp;
 		v = round(tmp);
