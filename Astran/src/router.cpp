@@ -4,7 +4,7 @@
  **************************************************************************/
 #include "router.h"
 
-Router::Router():sizeX(0), sizeY(0), sizeZ(0){}
+Router::Router():sizeX(0), sizeY(0), sizeZ(0), pitchH(1), pitchV(1){}
 
 Router::~Router(){}
 
@@ -44,6 +44,10 @@ void Router::test(string r){
 }
 
 void Router::setup(int sX, int sY, int sZ){
+	if(sX<=0 || sY<=0)
+		throw AstranError("Invalid routing grid size " + to_string(sX) + " x " + to_string(sY));
+	if(sZ<3)
+		throw AstranError("The router needs at least 3 layers, but " + to_string(sZ) + " were requested");
 	teste=false;
 	sizeX=sX;
 	sizeY=sY;
@@ -54,26 +58,37 @@ void Router::setup(int sX, int sY, int sZ){
 	rt.setLayerCosts(1,	11, 4, 4);
 	rt.setLayerCosts(2,	4, 11, 4);
 	
-	int pitchH=currentCircuit->getHPitch()*currentCircuit->getRules()->getScale();
-	int pitchV=currentCircuit->getVPitch()*currentCircuit->getRules()->getScale();
+	pitchH=currentCircuit->getHPitch()*currentCircuit->getRules()->getScale();
+	pitchV=currentCircuit->getVPitch()*currentCircuit->getRules()->getScale();
 	
 	netIndex.clear();
 	int i=1;
+	int droppedPins=0;
+	//Adds a pin to the routing grid, checking that it lies inside the grid
+	auto addPin=[&](const string& netName, const string& what, int x, int y, int z){
+		if(x<0 || x>=sX || y<0 || y>=sY)
+			throw AstranError("Pin " + what + " of net " + netName + " is outside the routing grid (" + to_string(x) + "," + to_string(y) + " in a " + to_string(sX) + "x" + to_string(sY) + " grid). Check the placement area.");
+		int net=netIndex[netName];
+		int node=rt.getPos(x,y,z);
+		if(!rt.addNodetoNet(net,node) && rt.getNet(node)!=net){
+			if(droppedPins<5) cout << "-> WARNING: pin " << what << " of net " << netName << " falls on a grid point already used by another net and was ignored" << endl;
+			droppedPins++;
+		}
+	};
 	vector<Net>& nets=currentCircuit->getCellNetlst(currentCircuit->getTopCell())->getNets();
 	for(vector<Net>::iterator nets_it=nets.begin(); nets_it!=nets.end(); nets_it++){
 		if(nets_it->name!=currentCircuit->getVddNet() && nets_it->name!=currentCircuit->getGndNet()){
 			if(netIndex.find(nets_it->name)==netIndex.end()) netIndex[nets_it->name]=i++;
 			Circuit::Interface* tmp_int=currentCircuit->getInterface(nets_it->name);
-			if(tmp_int){
-				//					cerr << netIndex[nets_it->name] << " " << tmp_int->pos.getX()+currentCircuit->getLMargin() << " " << tmp_int->pos.getY()+currentCircuit->getBMargin() << endl;
-				rt.addNodetoNet(netIndex[nets_it->name], rt.getPos(tmp_int->pos.getX()+currentCircuit->getLMargin() ,tmp_int->pos.getY()+currentCircuit->getBMargin(), 2));
-			}
+			if(tmp_int)
+				addPin(nets_it->name, "I/O " + nets_it->name, tmp_int->pos.getX()+currentCircuit->getLMargin(), tmp_int->pos.getY()+currentCircuit->getBMargin(), 2);
 			for(list<InstancePin>::iterator nodes_it=nets_it->insts.begin(); nodes_it!=nets_it->insts.end(); nodes_it++){
 				Instance* tmp_inst=currentCircuit->getLayout(currentCircuit->getTopCell() + "_PL")->getInstance(nodes_it->targetCellInst);
 				if(tmp_inst){
 					CLayout* tmp_layout=currentCircuit->getLayout(tmp_inst->getTargetCell());
 					if(tmp_layout){
-						multimap<string,Pin>::iterator pin_it = tmp_layout->getPins().find(currentCircuit->getCellNetlst(tmp_inst->getTargetCell())->getInout(nodes_it->targetPin));
+						string pinName=currentCircuit->getCellNetlst(tmp_inst->getTargetCell())->getInout(nodes_it->targetPin);
+						multimap<string,Pin>::iterator pin_it = tmp_layout->getPins().find(pinName);
 						if(pin_it!=tmp_layout->getPins().end()){
 							int posx=pin_it->second.getX(), posy=pin_it->second.getY();
 							if(tmp_inst->getMX())
@@ -84,10 +99,10 @@ void Router::setup(int sX, int sY, int sZ){
 								posx=tmp_inst->getX()-posx;
 							else
 								posx+=tmp_inst->getX();								
-							rt.addNodetoNet(netIndex[nets_it->name], rt.getPos(round(static_cast<float>(posx)/pitchH)+currentCircuit->getLMargin() ,round(static_cast<float>(posy)/pitchV)+currentCircuit->getBMargin(),0));
+							addPin(nets_it->name, nodes_it->targetCellInst + "." + pinName, round(static_cast<float>(posx)/pitchH)+currentCircuit->getLMargin(), round(static_cast<float>(posy)/pitchV)+currentCircuit->getBMargin(), 0);
 						}
                         else
-                            throw AstranError("Pin " + currentCircuit->getCellNetlst(tmp_inst->getTargetCell())->getInout(nodes_it->targetPin) + " not found in cell instance " + nodes_it->targetCellInst);
+                            throw AstranError("Pin " + pinName + " not found in cell instance " + nodes_it->targetCellInst);
 					}else
                         throw AstranError("Cell " + tmp_inst->getTargetCell() + " not found");
                 }else
@@ -95,6 +110,7 @@ void Router::setup(int sX, int sY, int sZ){
 			}
 		}
 	}
+	if(droppedPins>5) cout << "-> WARNING: " << droppedPins << " pins were ignored because they share a grid point with another net. Just the 5 firsts were shown." << endl;
 //	if(netIndex.find("bl")!=netIndex.end()) rt.setBlockageNet(netIndex["bl"]);
 }
 

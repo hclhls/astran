@@ -9,6 +9,11 @@
 
 #include "placer.h"
 
+//Converts a database-unit position to a grid point, rounding like Router::setup does
+static int toGrid(int pos, int pitch){
+	return static_cast<int>(round(static_cast<float>(pos)/pitch));
+}
+
 Placer::Placer():nrSites(0), utilization(100){};
 
 int Placer::getHSize(){
@@ -150,8 +155,8 @@ void Placer::checkWL(){
 							if(pin_it!=currentLayout->getPins().end()){
 								x=currentInstance->getMY() ? -pin_it->second.getX() : pin_it->second.getX();
 								y=currentInstance->getMX() ? -pin_it->second.getY() : pin_it->second.getY();
-								x=(currentInstance->getX()+x)/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale());
-								y=(currentInstance->getY()+y)/(currentCircuit->getVPitch()*currentCircuit->getRules()->getScale());
+								x=toGrid(currentInstance->getX()+x, currentCircuit->getHPitch()*currentCircuit->getRules()->getScale());
+								y=toGrid(currentInstance->getY()+y, currentCircuit->getVPitch()*currentCircuit->getRules()->getScale());
 								if(nodes_it==nets_it->insts.begin()){
 									minX=x;  maxX=x; minY=y; maxY=y;
 								}else{
@@ -206,8 +211,8 @@ void Placer::autoFlip(){
                         if(pin_it!=currentLayout->getPins().end()){
                             x=currentInstance->getMY() ? -pin_it->second.getX() : pin_it->second.getX();
                             y=currentInstance->getMX() ? -pin_it->second.getY() : pin_it->second.getY();
-                            x=(currentInstance->getX()+x)/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale());
-                            y=(currentInstance->getY()+y)/(currentCircuit->getVPitch()*currentCircuit->getRules()->getScale());
+                            x=toGrid(currentInstance->getX()+x, currentCircuit->getHPitch()*currentCircuit->getRules()->getScale());
+                            y=toGrid(currentInstance->getY()+y, currentCircuit->getVPitch()*currentCircuit->getRules()->getScale());
                             if(nodes_it==nets_it->insts.begin()){
                                 minX=x;  maxX=x; minY=y; maxY=y;
                             }else{
@@ -237,12 +242,12 @@ void Placer::autoFlip(){
 				int pitchH=currentCircuit->getHPitch()*currentCircuit->getRules()->getScale();
 				//pin x in the current orientation (a mirrored instance's X is its right edge)
 				x=currentInstance->getMY() ? -pin_it->second.getX() : pin_it->second.getX();
-				x=(currentInstance->getX()+x)/pitchH;
+				x=toGrid(currentInstance->getX()+x, pitchH);
 				//pin x after toggling MY: the apply step below moves X by the cell width, so include it
 				if(currentInstance->getMY())
-					xMY=(currentInstance->getX()-currentLayout->getWidth()+pin_it->second.getX())/pitchH;
+					xMY=toGrid(currentInstance->getX()-currentLayout->getWidth()+pin_it->second.getX(), pitchH);
 				else
-					xMY=(currentInstance->getX()+currentLayout->getWidth()-pin_it->second.getX())/pitchH;
+					xMY=toGrid(currentInstance->getX()+currentLayout->getWidth()-pin_it->second.getX(), pitchH);
 				
 				if(x==netMinX[nets_it->name])   //razoes inverter
 					instanceMY[nodes_it->targetCellInst]+=xMY-x;
