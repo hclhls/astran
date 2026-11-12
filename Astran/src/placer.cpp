@@ -303,9 +303,8 @@ bool Placer::checkPlacement(){
 					currentInstance=currentCircuit->getLayout(currentCircuit->getTopCell() + "_PL")->getInstance(*slots_it);
 					if(currentInstance){
 						currentLayout=currentCircuit->getLayout(currentInstance->getTargetCell());
-						rowSize+=currentLayout->getWidth();
 						if(currentLayout){
-							posXi=(currentInstance->getX()/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale()))-(static_cast<int>(currentInstance->getMY())*currentLayout->getWidth());
+							posXi=(currentInstance->getX()-static_cast<int>(currentInstance->getMY())*currentLayout->getWidth())/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale());
 							posXf=posXi+currentLayout->getWidth()/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale());
 							if((posXi<x+l->getWidth()/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale())) && (posXf>x)){
 								if(errorMsgs<6) cout << "-> Instance " << cellsInst_it->first << " in row " << rowNr << " is overlaping cell " << *slots_it << ". Run INCREMENTAL PLACEMENT afterward to correct this problem." << endl;
@@ -327,7 +326,7 @@ bool Placer::checkPlacement(){
 				ok=false;
 			}
 		}else{
-			if(errorMsgs<6) cout << "-> Instance " << cellsInst_it->first << " has no cell layout " << currentInstance->getTargetCell() << endl;
+			if(errorMsgs<6) cout << "-> Instance " << cellsInst_it->first << " has no cell layout " << cellsInst_it->second.getTargetCell() << endl;
 			ok=false;
 		}
 	}
@@ -338,8 +337,10 @@ bool Placer::checkPlacement(){
 		rowSize=0;
 		for(nodes_it=rows_it->begin();nodes_it!=rows_it->end();nodes_it++){
 			currentInstance=currentCircuit->getLayout(currentCircuit->getTopCell() + "_PL")->getInstance(*nodes_it);
-			currentLayout=currentCircuit->getLayout(currentInstance->getTargetCell());
-			if(currentInstance && currentLayout) rowSize+=currentLayout->getWidth();
+			if(currentInstance){
+				currentLayout=currentCircuit->getLayout(currentInstance->getTargetCell());
+				if(currentLayout) rowSize+=currentLayout->getWidth();
+			}
 		}
 		width=max(width, static_cast<int>(rowSize/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale())));
 	}
@@ -351,7 +352,6 @@ bool Placer::checkPlacement(){
 	}
 	if(rows.size() > nrRows){
 		cout << "-> Some cells could not be placed inside the placement area. Increasing number of rows from " << nrRows << " to " << rows.size() << ". Run PLACE TERMINALS again afterward." << endl;
-		nrSites=width;
 	}
 	
 	return ok;
