@@ -37,7 +37,7 @@ protected:
 		void setFather(int i, int f){father=f;idNr=i;};
 		int getFather(int i){ return idNr==i ? father :  0; };
 		bool isVisited(int i){return idNr==i;};
-		Node():net(0), nrNets(0), history(0), idNr(0){};
+		Node():net(0), nrNets(0), history(0), father(0), idNr(0){};
 	};
 	
 	//Keep trace of the path in the bfs algorithm 
@@ -69,7 +69,7 @@ protected:
 	int conflicts;
 	int blockageNet;
 public:
-	GridRouter(){};
+	GridRouter():sizeX(0), sizeY(0), sizeZ(0), sizeXY(0), visited(0), actualAttempt(0), trace_id(0), conflicts(0), blockageNet(0){};
 	~GridRouter(){};
 	
 	int getDir(const int& node, const rt_dir& dir){return node+direction[dir];};
@@ -96,6 +96,7 @@ public:
 	int getPosY(int& pos){return (pos%sizeXY)/sizeX;};
 	int getPosZ(int& pos){return pos/sizeXY;};	
 	int getCenter(vector<int>& Nodes);
+	int findOtherOwner(int node, int exclude);
 	void clear();
 	void reset();
 	int calcDistance(int node1, int node2);

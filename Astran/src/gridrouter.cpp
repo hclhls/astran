@@ -3,6 +3,7 @@
  *   amziesemerj[at]inf.ufrgs.br                                           *
  **************************************************************************/
 
+#include <algorithm>
 #include "gridrouter.h"
 
 //Clear data structures
@@ -136,9 +137,9 @@ bool GridRouter::aStar(map<int,t_nets>::iterator& net, list<int>& targetNodes){
 			net->second.routeResult.push_back(node);
 			if(!isSource(node)){
 				if(graph[node].nrNets){
-					bool &tmp=netlist[graph[node].net].conflict;
-					if(!tmp){
-						tmp=true;
+					map<int,t_nets>::iterator owner_it=netlist.find(graph[node].net);
+					if(owner_it!=netlist.end() && !owner_it->second.conflict){
+						owner_it->second.conflict=true;
 						++conflicts;
 					}
 					net->second.conflict=true;
@@ -195,7 +196,8 @@ void GridRouter::routeNets(int nrAttempts){
 				for(netTree_it=(nets_it->second).netTree.begin(); netTree_it!=(nets_it->second).netTree.end(); ++netTree_it){
 					if(!isSource(*netTree_it)){
 						--graph[*netTree_it].nrNets;
-						if(getNet(*netTree_it)==nets_it->first)  graph[*netTree_it].net=0; 
+						//If another net still uses the node, it becomes the owner; otherwise the node is free
+						if(getNet(*netTree_it)==nets_it->first)  graph[*netTree_it].net=(graph[*netTree_it].nrNets>0 ? findOtherOwner(*netTree_it, nets_it->first) : 0); 
 					}
 				}
 				//Clear netTree	of the net
@@ -291,12 +293,20 @@ int GridRouter::getCenter(vector<int>& Nodes){
 		y+=getPosY(*target_it);
 		z+=getPosZ(*target_it);
 	}
-	centerNode=getPos(round(x/Nodes.size()),round(y/Nodes.size()), round(z/Nodes.size()));
+	centerNode=getPos(round(static_cast<float>(x)/Nodes.size()),round(static_cast<float>(y)/Nodes.size()), round(static_cast<float>(z)/Nodes.size()));
 	//cout << "CenterNode: " << centerNode << endl;
 	closestPos=getClosestNodePos(centerNode,Nodes);
 	temp=Nodes[0];
 	Nodes[0]=Nodes[closestPos];
 	Nodes[closestPos]=temp;
+	return 0;
+}
+
+//Find a net other than 'exclude' whose routing tree contains the node (0 if none)
+int GridRouter::findOtherOwner(int node, int exclude){
+	for(map<int,t_nets>::iterator nets_it=netlist.begin(); nets_it!=netlist.end(); ++nets_it)
+		if(nets_it->first!=exclude && find(nets_it->second.netTree.begin(), nets_it->second.netTree.end(), node)!=nets_it->second.netTree.end())
+			return nets_it->first;
 	return 0;
 }
 
@@ -341,7 +351,7 @@ inline int GridRouter::calcCost(int node2, rt_dir dir){
 	switch (dir){
 		case RT_WEST: return costs[getPosZ(node2)*3] + tmp; break;
 		case RT_SOUTH: return costs[getPosZ(node2)*3+1] + tmp; break;
-		case RT_DOWN: return costs[(getPosZ(node2)+1)*3+2] + tmp; break;
+		case RT_DOWN: return costs[getPosZ(node2)*3+2] + tmp; break; //via between z and z+1: upCost of the lower layer, as RT_UP
 		case RT_EAST: return costs[getPosZ(node2)*3] + tmp; break;
 		case RT_NORTH: return costs[getPosZ(node2)*3+1] + tmp; break;
 		case RT_UP: return costs[(getPosZ(node2)-1)*3+2] + tmp;  break;
