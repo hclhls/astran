@@ -184,7 +184,7 @@ void Placer::autoFlip(){
 	CLayout *currentLayout;	
 	CellNetlst *currentCell;
 	multimap<string,Pin>::iterator pin_it;
-	int minX, maxX, minY, maxY, x,y, xMY;
+	int minX=0, maxX=0, minY=0, maxY=0, x,y, xMY;
 	map<string, int> netMinX, netMaxX, instanceMY;
 	vector<Net>& nets=currentCircuit->getCellNetlst(currentCircuit->getTopCell())->getNets();
 	for(vector<Net>::iterator nets_it=nets.begin(); nets_it!=nets.end(); nets_it++){
@@ -214,8 +214,10 @@ void Placer::autoFlip(){
                     throw AstranError("Cell instance " + nodes_it->targetCellInst + " not found");
 				instanceMY[nodes_it->targetCellInst]=0;
 			}
-			netMinX[nets_it->name]=minX;
-			netMaxX[nets_it->name]=maxX;
+			if(!nets_it->insts.empty()){ //nets without instance pins have no extents
+				netMinX[nets_it->name]=minX;
+				netMaxX[nets_it->name]=maxX;
+			}
 		}
 	}
 	for(vector<Net>::iterator nets_it=nets.begin(); nets_it!=nets.end(); nets_it++){
