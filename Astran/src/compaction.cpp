@@ -17,36 +17,7 @@ Compaction::Compaction( cp_algo a ,string name) {
 
 /** Insert new variable. */
 void Compaction::insertVal( string name ) {
-	stringstream name_ss(name);
-	string name_new;
-	regex str_expr_sign ("[+-]");
-	regex str_expr_litl ("[0-9]+(.*)");
-	regex str_expr_endl ("\n");
-	//cout << "[INFO]" << name << endl;
 	variables[name] = 0;
-	
-	while (name_ss >> name_new) { 
-		if (regex_match (name_new,str_expr_sign)){
-			//cout << "[SIGN]" << name_new << endl;
-		}
-		else if (regex_match (name_new,str_expr_litl)){
-			//cout << "[LITERAL]" << name_new << endl;
-		}
-		else if (regex_match (name_new,str_expr_endl)){
-			//cout << "[ENDL]" << name_new << endl;
-		}
-		else {
-			try {
-				//variables[name_new] = 0;
-				forceIntegerVar(name_new);
-				cout << "[INFO]" << name_new << endl;
-			} catch (std::exception &e) {
-				//cout << "[ERROR]" << name_new << endl;
-			}
-		}	
-		//  cout << "INS VAR " << name << endl;
-	}
-	
 }
 
 /** Insert new constraint. */
@@ -570,10 +541,11 @@ int Compaction::solve(string lpSolverFile, int timeLimit) {
                 f << "SOS" << i << ": " << sos_vars[i] << " <= 1" << endl;
         }
         
+        f << "End" << endl;
         f.flush();
         f.close();
     }
-    
+
     string solFileName = lp_filename + ".sol";
     
     //remove(solFileName.c_str());
