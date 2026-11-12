@@ -135,7 +135,7 @@ void Placer::checkWL(){
 	CellNetlst *currentCell;
 	multimap<string,Pin>::iterator pin_it;
 	Circuit::Interface *currentInterface;
-	int minX, maxX, minY, maxY, x,y, wl=0;
+	int minX=0, maxX=0, minY=0, maxY=0, x,y, wl=0;
 	vector<Net>& nets=currentCircuit->getCellNetlst(currentCircuit->getTopCell())->getNets();
 	for(vector<Net>::iterator nets_it=nets.begin(); nets_it!=nets.end(); nets_it++){
 		if(nets_it->name!=currentCircuit->getVddNet() && nets_it->name!=currentCircuit->getGndNet()){
@@ -166,11 +166,18 @@ void Placer::checkWL(){
 				}else
                     throw AstranError("Cell instance " + nodes_it->targetCellInst + " not found");
 			}
+			bool hasPoints=!nets_it->insts.empty(); //min/max are only valid if some pin was seen
 			currentInterface=currentCircuit->getInterface(nets_it->name);
 			if(currentInterface){
-				minX=min(minX,currentInterface->pos.getX());  maxX=max(maxX,currentInterface->pos.getX()); minY=min(minY,currentInterface->pos.getY()); maxY=max(maxY,currentInterface->pos.getY());
+				if(hasPoints){
+					minX=min(minX,currentInterface->pos.getX());  maxX=max(maxX,currentInterface->pos.getX()); minY=min(minY,currentInterface->pos.getY()); maxY=max(maxY,currentInterface->pos.getY());
+				}else{
+					minX=maxX=currentInterface->pos.getX(); minY=maxY=currentInterface->pos.getY();
+					hasPoints=true;
+				}
 			}
-			wl+=(maxX-minX)+(maxY-minY);
+			if(hasPoints)
+				wl+=(maxX-minX)+(maxY-minY);
 		}
 	}
 	cout << "-> Semi-perimeter wire length = " << wl << endl;
