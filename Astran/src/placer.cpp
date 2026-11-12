@@ -360,10 +360,28 @@ bool Placer::checkPlacement(){
 void Placer::setArea(int n, float u){
 	if(n<=0) 
         throw AstranError("Number of rows should be positive");
+	if(!(u>0 && u<=100))
+        throw AstranError("Utilization should be greater than 0 and at most 100");
+    
+	//Validate everything and compute the area before changing any state
+	CellNetlst* cell=currentCircuit->findCellNetlst(currentCircuit->getTopCell());
+	if(!cell)
+        throw AstranError("Top cell netlist " + currentCircuit->getTopCell() + " not found");
+    
+	int pitchH=currentCircuit->getHPitch()*currentCircuit->getRules()->getScale();
+	int tmp=0; //total number of sites used by the cells
+	for(map<string,CellInstance>::iterator inst_it=cell->getInstances().begin(); inst_it!=cell->getInstances().end(); ++inst_it){
+		CLayout *cellLayout=currentCircuit->getLayout(inst_it->second.subCircuit);
+		if(!cellLayout)
+			throw AstranError("Cell layout " + inst_it->second.subCircuit + " not found (instance " + inst_it->first + ")");
+		tmp+=(cellLayout->getWidth()+pitchH-1)/pitchH; //round up: a cell occupies whole sites
+	}
+	if(tmp<=0)
+        throw AstranError("No cell instance found in the circuit");
+	int sites=static_cast<int>(ceil((tmp/(u/100.0f))/n));
     
 	rows.clear();
-	rows.resize(max(1,n));
-	int tmp=0;
+	rows.resize(n);
 	CLayout top(currentCircuit->getTopCell());
 	currentCircuit->insertLayout(top);
     
@@ -373,26 +391,15 @@ void Placer::setArea(int n, float u){
 	currentCircuit->getLayout(currentCircuit->getTopCell())->addInstance("PLACEMENT", currentCircuit->getTopCell() + "_PL");
 	currentCircuit->getLayout(currentCircuit->getTopCell())->placeCell("PLACEMENT", 0, 0, false, false);
     
-	CellNetlst* cell=currentCircuit->findCellNetlst(currentCircuit->getTopCell());
-	if(!cell)
-        throw AstranError("Top cell netlist " + currentCircuit->getTopCell() + " not found");
-    
     //		for(int c=0; c<cell->getInouts().size(); ++c)
     //			insertInterface(cell->getNetName(cell->getInouts()[c]), N, cell->getIOType(c), 0, 0);
-    for(map<string,CellInstance>::iterator inst_it=cell->getInstances().begin(); inst_it!=cell->getInstances().end(); ++inst_it){
-        CLayout *l=currentCircuit->getLayout(currentCircuit->getTopCell() + "_PL");
-        if(!l)
-            throw AstranError("Cell layout " + inst_it->second.subCircuit + "not found");
+    CLayout *l=currentCircuit->getLayout(currentCircuit->getTopCell() + "_PL");
+    if(!l)
+        throw AstranError("Placement layout " + currentCircuit->getTopCell() + "_PL not found");
+    for(map<string,CellInstance>::iterator inst_it=cell->getInstances().begin(); inst_it!=cell->getInstances().end(); ++inst_it)
         l->addInstance(inst_it->first, inst_it->second.subCircuit);
-    }
     
-    map<string, Instance>::iterator cellsInst_it;
-    for(cellsInst_it=currentCircuit->getLayout(currentCircuit->getTopCell() + "_PL")->getInstances()->begin();cellsInst_it!=currentCircuit->getLayout(currentCircuit->getTopCell() + "_PL")->getInstances()->end();cellsInst_it++)
-        tmp+= currentCircuit->getLayout(cellsInst_it->second.getTargetCell())->getWidth()/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale());
-    nrSites = ceil((tmp/(u/100.0f))/rows.size());
-    if(nrSites<=0)
-        throw AstranError("No cell instance found in the circuit");
-    
+    nrSites=sites;
     utilization= 100*(static_cast<float>(tmp)/(nrSites*rows.size()));
     cout << "-> Setting place area to " << rows.size()*currentCircuit->getRowHeight()*currentCircuit->getVPitch() << " x " <<  nrSites*currentCircuit->getHPitch() << " (HxW)um  with " << getUtilization() << "% of utilization" << endl;
 }
