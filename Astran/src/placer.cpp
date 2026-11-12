@@ -225,9 +225,15 @@ void Placer::autoFlip(){
 				currentLayout=currentCircuit->getLayout(currentInstance->getTargetCell());
 				currentCell=currentCircuit->getCellNetlst(currentInstance->getTargetCell());
 				pin_it=currentLayout->getPins().find(currentCell->getInout(nodes_it->targetPin));
+				int pitchH=currentCircuit->getHPitch()*currentCircuit->getRules()->getScale();
+				//pin x in the current orientation (a mirrored instance's X is its right edge)
 				x=currentInstance->getMY() ? -pin_it->second.getX() : pin_it->second.getX();
-				x=(currentInstance->getX()+x)/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale());
-				xMY=(currentInstance->getX()-x)/(currentCircuit->getHPitch()*currentCircuit->getRules()->getScale());
+				x=(currentInstance->getX()+x)/pitchH;
+				//pin x after toggling MY: the apply step below moves X by the cell width, so include it
+				if(currentInstance->getMY())
+					xMY=(currentInstance->getX()-currentLayout->getWidth()+pin_it->second.getX())/pitchH;
+				else
+					xMY=(currentInstance->getX()+currentLayout->getWidth()-pin_it->second.getX())/pitchH;
 				
 				if(x==netMinX[nets_it->name])   //razoes inverter
 					instanceMY[nodes_it->targetCellInst]+=xMY-x;
