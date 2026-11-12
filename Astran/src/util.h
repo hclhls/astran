@@ -158,3 +158,11 @@ using std::min;
 #define _popen popen
 #define _pclose pclose
 #endif
+
+//Grid column/row of a database-unit position. Pins found by CALCPINSPOS sit half a pitch inside
+//their column (and mirrored cells' X is their right edge), so the grid node is the floor of the
+//division, not the nearest one. Works for negative positions too.
+inline int floorDiv(int pos, int pitch){
+	int q=pos/pitch;
+	return (pos%pitch!=0 && ((pos<0)!=(pitch<0))) ? q-1 : q;
+}

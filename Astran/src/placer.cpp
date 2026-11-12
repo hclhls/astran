@@ -9,9 +9,9 @@
 
 #include "placer.h"
 
-//Converts a database-unit position to a grid point, rounding like Router::setup does
+//Converts a database-unit position to a grid point, the same way Router::setup does
 static int toGrid(int pos, int pitch){
-	return static_cast<int>(round(static_cast<float>(pos)/pitch));
+	return floorDiv(pos, pitch);
 }
 
 Placer::Placer():nrSites(0), utilization(100){};
@@ -37,6 +37,26 @@ CLayout* Placer::getLayoutFromInstance(string instanceName){
 		}else cout << "-> Instance " << instanceName << " has no cell layout " << currentInstance->getTargetCell() << endl;
 	}else cout << "-> Instance " << instanceName << " not found" << endl;
 	return NULL;
+}
+
+//Horizontal position of each pin of a layout. The pin map holds one entry per sampled point of the pin
+//(plus "bl" blockage points), so use the middle of the sampled range as the pin's single position.
+static map<string,int> pinPositions(CLayout* layout){
+	map<string,pair<int,int> > range;
+	for(multimap<string,Pin>::iterator pins_it=layout->getPins().begin(); pins_it!=layout->getPins().end(); ++pins_it){
+		if(pins_it->first=="bl") continue;
+		int x=pins_it->second.getX();
+		map<string,pair<int,int> >::iterator r=range.find(pins_it->first);
+		if(r==range.end()) range[pins_it->first]=make_pair(x,x);
+		else{
+			r->second.first=min(r->second.first,x);
+			r->second.second=max(r->second.second,x);
+		}
+	}
+	map<string,int> positions;
+	for(map<string,pair<int,int> >::iterator r=range.begin(); r!=range.end(); ++r)
+		positions[r->first]=(r->second.first+r->second.second)/2;
+	return positions;
 }
 
 void Placer::incrementalPlacement(Router* rt, string lpSolverFile){
@@ -68,16 +88,16 @@ void Placer::incrementalPlacement(Router* rt, string lpSolverFile){
 				cellConflicts[*nodes_it]+=conflicts;
 				if(conflicts) cellSpace[*nodes_it]++;
 				if(!cellSpace[*nodes_it])
-					cpt.insertConstraint( lastNode, "C_"+ *nodes_it+"END", CP_MIN, "ZERO");
+					cpt.insertConstraint( lastNode, "C_"+ *nodes_it+"_END", CP_MIN, "ZERO");
 				else{
-					cpt.insertConstraint( lastNode, "C_"+ *nodes_it+"END", CP_EQ, "C_"+ *nodes_it+"DIST");
-					cpt.insertConstraint( "ZERO", "C_"+ *nodes_it+"DIST", CP_MAX, cellSpace[*nodes_it]);
-					cpt.insertLPMinVar("C_"+ *nodes_it+"DIST",-cellConflicts[*nodes_it]);
+					cpt.insertConstraint( lastNode, "C_"+ *nodes_it+"_END", CP_EQ, "C_"+ *nodes_it+"_DIST");
+					cpt.insertConstraint( "ZERO", "C_"+ *nodes_it+"_DIST", CP_MAX, cellSpace[*nodes_it]);
+					cpt.insertLPMinVar("C_"+ *nodes_it+"_DIST",-cellConflicts[*nodes_it]);
 				}
-				cpt.insertConstraint("C_"+ *nodes_it+"END", *nodes_it, CP_EQ, currentLayout->getWidth()/hGrid);
-				multimap<string,Pin>::iterator pins_it;
-				for(pins_it=currentLayout->getPins().begin(); pins_it!=currentLayout->getPins().end(); pins_it++)
-					cpt.insertConstraint( "C_"+ *nodes_it+"P_"+pins_it->first, *nodes_it, CP_EQ, (pins_it->second.getX()+hGrid/2)/hGrid);
+				cpt.insertConstraint("C_"+ *nodes_it+"_END", *nodes_it, CP_EQ, currentLayout->getWidth()/hGrid);
+				map<string,int> pinPos=pinPositions(currentLayout);
+				for(map<string,int>::iterator pins_it=pinPos.begin(); pins_it!=pinPos.end(); pins_it++)
+					cpt.insertConstraint( "C_"+ *nodes_it+"_P_"+pins_it->first, *nodes_it, CP_EQ, (pins_it->second+hGrid/2)/hGrid);
 				lastNode=*nodes_it;
 			}else{
 				cellPosX=currentInstance->getX()/hGrid;
@@ -96,8 +116,9 @@ void Placer::incrementalPlacement(Router* rt, string lpSolverFile){
 					cpt.insertLPMinVar("C_"+ *nodes_it+"_DIST",-cellConflicts[*nodes_it]);
 				}
 				cpt.insertConstraint( *nodes_it, "C_"+ *nodes_it+"_END", CP_EQ, getLayoutFromInstance(*nodes_it)->getWidth()/hGrid);
-				for(multimap<string,Pin>::iterator pins_it=currentLayout->getPins().begin(); pins_it!=currentLayout->getPins().end(); pins_it++)
-					cpt.insertConstraint( *nodes_it, "C_"+ *nodes_it+"_P_"+pins_it->first, CP_EQ, (pins_it->second.getX()-hGrid/2)/hGrid);
+				map<string,int> pinPos=pinPositions(currentLayout);
+				for(map<string,int>::iterator pins_it=pinPos.begin(); pins_it!=pinPos.end(); pins_it++)
+					cpt.insertConstraint( *nodes_it, "C_"+ *nodes_it+"_P_"+pins_it->first, CP_EQ, (pins_it->second-hGrid/2)/hGrid);
 				lastNode="C_"+ *nodes_it+"_END";
 			}
 			lastX=cellPosXend;
@@ -124,7 +145,8 @@ void Placer::incrementalPlacement(Router* rt, string lpSolverFile){
 			cpt.insertLPMinVar("N_"+ nets_it->name+"_COMPACT");
 		}
 	}
-	cpt.solve(lpSolverFile, 3600);
+	if(!cpt.solve(lpSolverFile, 3600))
+		throw AstranError("Incremental placement failed: the solver reported an infeasible model");
 	
 	map<string, Instance> *cellsInsts=currentCircuit->getLayout(currentCircuit->getTopCell() + "_PL")->getInstances();
 	for(map<string, Instance>::iterator cellsInst_it=cellsInsts->begin(); cellsInst_it!=cellsInsts->end(); cellsInst_it++)

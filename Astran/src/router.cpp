@@ -99,7 +99,7 @@ void Router::setup(int sX, int sY, int sZ){
 								posx=tmp_inst->getX()-posx;
 							else
 								posx+=tmp_inst->getX();								
-							addPin(nets_it->name, nodes_it->targetCellInst + "." + pinName, round(static_cast<float>(posx)/pitchH)+currentCircuit->getLMargin(), round(static_cast<float>(posy)/pitchV)+currentCircuit->getBMargin(), 0);
+							addPin(nets_it->name, nodes_it->targetCellInst + "." + pinName, floorDiv(posx, static_cast<int>(pitchH))+currentCircuit->getLMargin(), floorDiv(posy, static_cast<int>(pitchV))+currentCircuit->getBMargin(), 0);
 						}
                         else
                             throw AstranError("Pin " + pinName + " not found in cell instance " + nodes_it->targetCellInst);
@@ -123,7 +123,7 @@ void Router::optimize(){
 }
 
 void Router::compactLayout(string lpSolverFile){
-	vector<layer_name> rtLayers(5);
+	vector<layer_name> rtLayers(7);
 	rtLayers[0]=MET1;
 	rtLayers[1]=VIA1;
 	rtLayers[2]=MET2;
