@@ -515,7 +515,7 @@ bool DesignMng::readCommand(string cmd){
                     break;
                     
                 case SET_LPSOLVE:
-                    if (!fileExist(words[2]))
+                    if (!commandExist(words[2]))
                         throw AstranError("Could not find file: " + words[2]);
                     
                     lpSolverFile=words[2];

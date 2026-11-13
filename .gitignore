@@ -1,1 +1,5 @@
 graphify-out/
+out/
+Astran/build/bin/astran-cli
+Astran/build/obj-cli/
+.superpowers/

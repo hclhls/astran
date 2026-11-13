@@ -15,9 +15,15 @@
 #include <iostream>
 #include <algorithm>
 #include <map>
+#include <cassert>
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
+#ifndef ASTRAN_CLI
 #include <wx/textctrl.h>
 #include <wx/wx.h>
 #include <wx/process.h>
+#endif
 
 #define printme( e ) { cerr << #e << " = " << ( e ) << "\n"; };
 #define VERSION "3.20"
@@ -56,6 +62,24 @@ inline bool fileExist(string filename){
     return file.good();
 }
 
+// True if 'cmd' is an existing file, or a bare command name found on PATH.
+inline bool commandExist(const string& cmd){
+	if (cmd.find('/') != string::npos)
+		return fileExist(cmd);
+	const char* path = getenv("PATH");
+	if (!path) return false;
+	string p(path);
+	size_t start = 0;
+	while (start <= p.size()) {
+		size_t end = p.find(':', start);
+		if (end == string::npos) end = p.size();
+		string dir = p.substr(start, end - start);
+		if (!dir.empty() && fileExist(dir + "/" + cmd)) return true;
+		start = end + 1;
+	}
+	return false;
+}
+
 inline string upcase(string s){
 	transform(s.begin(), s.end(), s.begin(), (int(*)(int)) toupper);
 	return s;
@@ -84,6 +108,7 @@ inline string getPath(const string& fileName){
 	return fileName.substr(0,fileName.find_last_of("/\\")+1);
 }
 
+#ifndef ASTRAN_CLI
 inline void icpdExecute(const string& exec_cmd){
 #if defined (_MSC_VER)
 	wxExecute(exec_cmd);
@@ -93,8 +118,11 @@ inline void icpdExecute(const string& exec_cmd){
 #endif
 }
 
+#endif
+
 static map<string, string> config;
 
+#ifndef ASTRAN_CLI
 class Redirector : public streambuf {
 private:
 	streambuf *clsOriginalStreamBuffer;
@@ -124,6 +152,7 @@ public:
 		return ch;
 	} // end overloaed method
 }; // end class
+#endif
 
 class AstranError{
     string message;

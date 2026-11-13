@@ -17,7 +17,9 @@
 #include <strstream>
 #include <fstream>
 #include <time.h>
+#ifndef ASTRAN_CLI
 #include <wx/process.h>
+#endif
 
 #include "circuit.h"
 #include "gridrouter.h"
