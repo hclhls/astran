@@ -41,7 +41,7 @@ SETTINGS = [
     'set vddnet VPWR', 'set gndnet VGND',
     'set celltemplate "Taps w/ continuous diff"',
     'set hgrid 0.46', 'set vgrid 0.34', 'set rowheight 10',
-    'set supplysize 0.48', 'set nwellpos 1.4', 'set nwellborder 0.18', 'set pnselborder 0.125',
+    'set supplysize 0.48', 'set nwellpos 1.5', 'set nwellborder 0.33', 'set pnselborder 0.125',
 ]
 
 

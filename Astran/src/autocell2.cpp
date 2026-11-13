@@ -65,6 +65,12 @@ AutoCell::Element* AutoCell::createElement(int vcost, int nDiffIni, int pDiffIni
     return &elements.back();
 }
 
+// Half height of the continuous tap strips of the "Taps w/ continuous diff" template: wide enough
+// to enclose a contact centred on the cell boundary.
+static int contTapHalfHeight(Rules* r) {
+    return max(r->getRule(W2DF), r->getRule(W2CT) + 2 * r->getRule(E2DFCT)) / 2;
+}
+
 void AutoCell::calcArea(int nrIntTracks, int reduceMetTracks) {
     this->reduceMetTracks=reduceMetTracks;
     checkState(1);
@@ -111,7 +117,8 @@ void AutoCell::calcArea(int nrIntTracks, int reduceMetTracks) {
         nDif_endY = max(currentRules->getRule(E1INDF), currentRules->getRule(S1P1P1) / 2 + currentRules->getRule(E1P1DF));
         pDif_endY = height - nDif_endY;
     }else if(currentCircuit->getCellTemplate()=="Taps w/ continuous diff"){
-        nDif_endY = currentRules->getRule(W2DF)/2 + currentRules->getRule(E1IPDF) + currentRules->getRule(E1P1DF);
+        // first transistor diffusion: clear of the tap strip (diffusion spacing) and of its implant
+        nDif_endY = contTapHalfHeight(currentRules) + max(currentRules->getRule(E1IPDF) + currentRules->getRule(E1P1DF), currentRules->getRule(S1DFDF));
         pDif_endY = height - nDif_endY;
     }else{
         nDif_endY = currentRules->getRule(E1P1DF) + currentRules->getRule(S1P1P1) / 2 ;
@@ -847,12 +854,25 @@ bool AutoCell::compact(string lpSolverFile, int diffStretching, int griddedPoly,
             cntPos= currentRules->getRule(S1CTCT)/2;
             minDiffDist= cntPos+currentRules->getRule(W2CT)+currentRules->getRule(E2DFCT)+currentRules->getRule(S1DFDF);
         }else if(currentCircuit->getCellTemplate()=="Taps w/ continuous diff"){
-            cntPos= currentRules->getRule(W2DF)/2+currentRules->getRule(E2DFCT);
-            minDiffDist= cntPos+currentRules->getRule(W2CT)+currentRules->getRule(E2DFCT)+currentRules->getRule(S1DFDF);
-            currentLayout.addPolygon(0, -currentRules->getRule(W2DF)/2, width, currentRules->getRule(W2DF)/2, PDIF);
-            currentLayout.addPolygon(0, -currentRules->getRule(W2DF)/2-currentRules->getRule(E1IPDF), width, currentRules->getRule(W2DF)/2+currentRules->getRule(E1IPDF), PSEL);
-            currentLayout.addPolygon(0, height+currentRules->getRule(W2DF)/2, width, height-currentRules->getRule(W2DF)/2, NDIF);
-            currentLayout.addPolygon(0, height+currentRules->getRule(W2DF)/2+currentRules->getRule(E1INDF), width, height-currentRules->getRule(W2DF)/2-currentRules->getRule(E1IPDF), NSEL);
+            // Strips centred on the cell boundary, each with a row of contacts centred on it, so
+            // that a vertically flipped neighbour draws exactly the same shapes.
+            int half = contTapHalfHeight(currentRules);
+            int cw = currentRules->getRule(W2CT), cs = currentRules->getRule(S1CTCT);
+            currentLayout.addPolygon(0, -half, width, half, PDIF);
+            currentLayout.addPolygon(0, -half-currentRules->getRule(E1IPDF), width, half+currentRules->getRule(E1IPDF), PSEL);
+            currentLayout.addPolygon(0, height+half, width, height-half, NDIF);
+            currentLayout.addPolygon(0, height+half+currentRules->getRule(E1INDF), width, height-half-currentRules->getRule(E1INDF), NSEL);
+            int margin = max(max(currentRules->getRule(E3DFCT), currentRules->getRule(E2DFCT)), cs/2);
+            int nCnt = (width - 2*margin + cs) / (cw + cs);
+            if (nCnt > 0) {
+                int start = (width - (nCnt*cw + (nCnt-1)*cs)) / 2;
+                for (int k = 0; k < nCnt; ++k) {
+                    int x = start + k*(cw+cs);
+                    currentLayout.addPolygon(x, -(cw/2), x+cw, cw-cw/2, CONT);
+                    currentLayout.addPolygon(x, height-(cw/2), x+cw, height+(cw-cw/2), CONT);
+                }
+                btP = btN = true;
+            }
         }
         //search for blocking regions in the PTAP area add its interval to a list
         btIntervalsN=btIntervalsP;
@@ -938,14 +958,19 @@ bool AutoCell::compact(string lpSolverFile, int diffStretching, int griddedPoly,
     currentLayout.addPolygon(-selBorder, -selBorder, width+selBorder, cpt.getVariableVal("posNWell"), NSEL);
     currentLayout.addPolygon(-selBorder, height+selBorder, width+selBorder, cpt.getVariableVal("posNWell"), PSEL);
     
-    currentLayout.addPolygon(0, 0, width, supWidth, MET1).setNet(currentCircuit->getGndNet());
-    currentLayout.addPolygon(0, 0, width, supWidth, MET1P);
-    currentLayout.addPolygon(0, height - supWidth, width, height, MET1).setNet(currentCircuit->getVddNet());
-    currentLayout.addPolygon(0, height - supWidth, width, height, MET1P);
+    // Supply rails. With continuous tap strips they are centred on the cell boundary (full supply
+    // size, drawn half outside the cell box) so that abutting rows coincide; otherwise only the
+    // inner half is drawn.
+    bool railsCentred = currentCircuit->getCellTemplate()=="Taps w/ continuous diff";
+    int railLo = railsCentred ? -supWidth : 0, railHi = supWidth;
+    currentLayout.addPolygon(0, railLo, width, railHi, MET1).setNet(currentCircuit->getGndNet());
+    currentLayout.addPolygon(0, railLo, width, railHi, MET1P);
+    currentLayout.addPolygon(0, height - railHi, width, height - railLo, MET1).setNet(currentCircuit->getVddNet());
+    currentLayout.addPolygon(0, height - railHi, width, height - railLo, MET1P);
     {   // label the supply rails with the supply net names
         Pin gndPin, vddPin;
-        gndPin.setX(width / 2); gndPin.setY(supWidth / 2);
-        vddPin.setX(width / 2); vddPin.setY(height - supWidth / 2);
+        gndPin.setX(width / 2); gndPin.setY((railLo + railHi) / 2);
+        vddPin.setX(width / 2); vddPin.setY(height - (railLo + railHi) / 2);
         currentLayout.addLabel(currentCircuit->getGndNet(), gndPin);
         currentLayout.addLabel(currentCircuit->getVddNet(), vddPin);
     }

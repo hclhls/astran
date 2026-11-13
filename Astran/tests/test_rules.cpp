@@ -36,6 +36,11 @@ int main() {
 	}
 	remove("tests/data/_out.lyt");
 
+	// generic slot for the diffusion enclosure of a tap contact; 0 in rule files that do not set it
+	CHECK(a.getRule(E3DFCT) == 0);
+	Rules t; t.readRules("tests/data/dt.rul");
+	CHECK(t.getRule(E3DFCT) == 24);    // 0.12 um at MINSTEP 0.005
+
 	std::cout << (failures ? "FAILED" : "all passed") << ": " << failures << " failures" << std::endl;
 	return failures ? 1 : 0;
 }

@@ -27,6 +27,7 @@ enum rule_name {
 	W1M6  ,W1M7  ,W1M8  ,W1M9  ,W1M10 ,A1DF, S1DFDF, S2DFDF,S1VIVI,S1V2V2,S1M3M3,
 	E1M3V2,E1M3V3,W2V3  ,E1M4V3,S1M4M4,W2V4  ,E1M4V4,E1M5V4,
 	S1M5M5,W2V5  ,S1IPIP,S1ININ,W2V6  ,W2V7  ,W2V8  ,W2V9  ,W2V10,
+	E3DFCT,
 	N_RULES
 };
 
@@ -235,6 +236,7 @@ private:
         {"W2V7"  ,"Fixed VIA7 size",0},
         {"W2V8"  ,"Fixed VIA8 size",0},
         {"W2V9"  ,"Fixed VIA9 size",0},
-        {"W2V10" ,"Fixed VIA10 size",0}
+        {"W2V10" ,"Fixed VIA10 size",0},
+        {"E3DFCT","Minimum DIFF enclosure of a tap CONT on at least 2 opposite sides (0 = use E2DFCT)",0}
     };
 };

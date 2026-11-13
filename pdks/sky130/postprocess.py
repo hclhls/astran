@@ -15,6 +15,7 @@ NPC_ENCLOSE = 100        # npc around poly licon
 NPC_SPACE = 270          # npc spacing (npc.2)
 NPC_EDGE = 135           # npc stays this far inside the left/right cell edges
 IMPLANT_SPACE = 380      # nsdm / psdm spacing and notch width
+IMPLANT_ENCLOSE = 125    # implant around diffusion and taps
 HVT_ENCLOSE = 55         # hvtp around the PMOS gate
 HVT_MIN_WIDTH = 380
 # Shapes of these layers that come within this distance of a left/right cell edge are
@@ -74,6 +75,14 @@ def postprocess(gds_in: Path, gds_out: Path, cell: str) -> None:
     tap = tap.merged()
     put("diff", diff - tap)
     put("tap", reg("tap") + tap)
+
+    # 1b. implants on taps: Astran draws the main n and p select over its whole half cell, tap
+    # strips included, so the implants overlap there. A p-tap belongs to psdm only, an n-tap to nsdm only.
+    taps = reg("tap")
+    zone_p = taps.not_overlapping(nwell).sized(IMPLANT_ENCLOSE, 2)
+    zone_n = taps.overlapping(nwell).sized(IMPLANT_ENCLOSE, 2)
+    psdm = ((psdm - zone_n) + zone_p).merged()
+    nsdm = ((nsdm - zone_p) + zone_n).merged()
 
     # 2. npc around licons on poly (not on diffusion)
     poly_cont = licon.overlapping(poly).not_overlapping(diff)

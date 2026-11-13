@@ -123,3 +123,22 @@ def test_output_on_grid(generated_inv_raw, tmp_path):
         for p in kdb.Region(top.begin_shapes_rec(li)).each():
             for pt in p.each_point_hull():
                 assert pt.x % 5 == 0 and pt.y % 5 == 0
+
+
+def test_tap_implant_follows_tap_type(tmp_path):
+    # Astran draws the main nsdm/psdm over the whole half cell, tap strips included, so the
+    # implants overlap on the taps. The p-tap must end up in psdm only, the n-tap in nsdm only.
+    ly = run(tmp_path, {
+        DIFF: [(0.0, 0.0, 3.0, 0.29), (0.0, 3.11, 3.0, 3.4), (0.5, 0.7, 1.5, 1.3), (0.5, 2.0, 1.5, 2.6)],
+        POLY: [(0.9, 0.5, 1.05, 1.5), (0.9, 1.8, 1.05, 2.8)],
+        NW: [(-0.2, 1.5, 3.2, 3.6)],
+        NSDM: [(-0.1, -0.1, 3.1, 1.5), (0.0, 3.0, 3.0, 3.5)],
+        PSDM: [(-0.1, 1.5, 3.1, 3.5), (0.0, -0.1, 3.0, 0.4)]})
+    ptap = region(ly, TAP) - region(ly, NW)
+    ntap = region(ly, TAP) & region(ly, NW)
+    assert not ptap.is_empty() and not ntap.is_empty()
+    assert (ptap & region(ly, NSDM)).is_empty() and (ntap & region(ly, PSDM)).is_empty()
+    assert (ptap - region(ly, PSDM)).is_empty() and (ntap - region(ly, NSDM)).is_empty()
+    assert (ptap.sized(125) - region(ly, PSDM)).is_empty()       # psdm still encloses the p-tap by 0.125
+    # transistor diffusion keeps its implant
+    assert (region(ly, DIFF) - region(ly, NSDM) - region(ly, PSDM)).is_empty()

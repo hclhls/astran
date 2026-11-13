@@ -37,7 +37,7 @@ E1P2CT	0
 S1CTP1	0.055	* licon.11
 S1CTDP	0
 S1CTDN	0
-S1CTDF	0.19	* licon.14 (poly licon to diff)
+S1CTDF	0.235	* licon.14; 0.235 is the poly licon to p-diffusion value (licon.9 + psdm.5a), the larger of the two
 S1CTP2	0
 R1M1	0
 R2M1	0
@@ -98,6 +98,7 @@ W2V7	0
 W2V8	0
 W2V9	0
 W2V10	0
+E3DFCT	0.12	* licon.7 (tap enclosure of its contact)
 
 *Layers Map
 *Name   CIF  GDSII  Tech
