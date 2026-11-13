@@ -6,6 +6,7 @@
 
 ```python
 DEFAULT_CELLS: list[str]                       # cells run when none are named
+BOUNDARY_LAYER: tuple[int, int]                # layer/datatype of the cell box in the final GDS
 def check_environment() -> None                # raise AdapterError if PDK or tools are missing
 def layout_name(cell: str) -> str              # top cell name of the final GDS
 def write_astran_netlist(cell: str, out: Path) -> str   # returns the Astran cell name
@@ -22,6 +23,9 @@ def notes() -> list[str]                       # lines printed under the table
 `AdapterError` (from `pdks.common`) carries a message that is shown to the user unchanged.
 `CheckResult(ok, count, report, detail)`: a checker that crashes, times out or leaves no
 report returns `ok=False, count=-1`; it never reports "0 errors".
+
+`pdks.common.build_abutment(cell_gds, top, neighbours, BOUNDARY_LAYER, out)` builds the abutment
+array (self, mirrored self, flipped rows, and each neighbour) that the driver runs through `drc`.
 
 ## Rules
 

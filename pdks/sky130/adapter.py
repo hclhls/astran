@@ -10,6 +10,7 @@ from pdks.sky130 import checks, netlist, pdk
 from pdks.sky130 import postprocess as postprocess_mod
 
 DEFAULT_CELLS = ["inv", "nand2", "nor2", "a21oi"]
+BOUNDARY_LAYER = pdk.LAYERS["prBoundary"]     # cell box (235/4)
 TOOLS = ["magic", "netgen", "klayout", "highs"]
 
 
