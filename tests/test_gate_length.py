@@ -24,5 +24,5 @@ def test_poly_width_follows_each_transistors_length(astran_cli, tmp_path):
     ngate = (gates & reg(93, 44)).merged()
     pgate = (gates & reg(94, 20)).merged()
     assert ngate.count() >= 1 and pgate.count() >= 1       # a wide device may be folded
-    assert {q.bbox().width() * ly.dbu for q in ngate.each()} == {0.6}
-    assert {q.bbox().width() * ly.dbu for q in pgate.each()} == {0.5}
+    assert {q.bbox().width() for q in ngate.each()} == {round(0.6 / ly.dbu)}
+    assert {q.bbox().width() for q in pgate.each()} == {round(0.5 / ly.dbu)}
