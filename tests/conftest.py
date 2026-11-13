@@ -63,3 +63,16 @@ def legacy_flow(run_astran, repo_root):
 def generated_mini_gds(legacy_flow, workdir, repo_root) -> Path:
     legacy_flow(repo_root / "tests/data/mini.rul", workdir)
     return workdir / "INV0.gds"
+
+
+@pytest.fixture(scope="session")
+def generated_inv_raw(astran_cli, tmp_path_factory) -> Path:
+    """Raw Astran GDS of the sky130 'inv' cell."""
+    from pdks.sky130 import adapter
+    wd = tmp_path_factory.mktemp("inv_raw")
+    name = adapter.write_astran_netlist("inv", wd / "astran.sp")
+    gds = wd / "raw.gds"
+    (wd / "cell.run").write_text(adapter.astran_script(name, wd / "astran.sp", gds))
+    r = subprocess.run([str(astran_cli), "cell.run"], cwd=wd, capture_output=True, text=True, timeout=900)
+    assert r.returncode == 0, r.stdout
+    return gds

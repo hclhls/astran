@@ -1,5 +1,7 @@
 """sky130 adapter: the contract documented in pdks/README.md."""
 import shutil
+
+import klayout.db as kdb
 from pathlib import Path
 
 from pdks.common import AdapterError, CheckResult
@@ -29,8 +31,29 @@ def write_lvs_netlist(cell: str, out: Path) -> None:
     netlist.write_lvs_netlist(cell, out)
 
 
+TECH_RUL = Path(__file__).with_name("tech.rul")
+
+# Starting circuit settings (tuned in Task 10).
+SETTINGS = [
+    'set vddnet VPWR', 'set gndnet VGND',
+    'set celltemplate "Taps w/ continuous diff"',
+    'set hgrid 0.46', 'set vgrid 0.34', 'set rowheight 10',
+    'set supplysize 0.48', 'set nwellpos 1.4', 'set nwellborder 0.18', 'set pnselborder 0.125',
+]
+
+
 def astran_script(astran_cell: str, netlist: Path, gds_out: Path) -> str:
-    raise NotImplementedError
+    lines = ['set lpsolve "highs"',
+             f'load technology "{TECH_RUL}"',
+             f'load netlist "{Path(netlist).resolve()}"']
+    lines += SETTINGS
+    lines += [f'cellgen select {astran_cell}',
+              'cellgen fold 2 0',
+              'cellgen place 150 3 3 4 1 4 2',
+              'cellgen route 1 0 1 1',
+              'cellgen compact 1 0 50 2 1 1 0 0 0 600',
+              f'export layout {astran_cell} {Path(gds_out).resolve()}']
+    return "\n".join(lines) + "\n"
 
 
 def postprocess(gds_in: Path, gds_out: Path, cell: str) -> None:
@@ -46,7 +69,14 @@ def lvs(gds: Path, top: str, ref: Path, workdir: Path) -> CheckResult:
 
 
 def cell_size(gds: Path, top: str) -> tuple:
-    raise NotImplementedError
+    """CELLBOX (prBoundary) width and height in um."""
+    ly = kdb.Layout()
+    ly.read(str(gds))
+    cell = ly.cell(top) or ly.top_cell()
+    box = kdb.Region(cell.begin_shapes_rec(ly.layer(*pdk.LAYERS["prBoundary"]))).bbox()
+    if box.empty():
+        raise AdapterError(f"{gds}: no prBoundary shape in cell {cell.name}")
+    return box.width() * ly.dbu, box.height() * ly.dbu
 
 
 def reference_size(cell: str) -> tuple:

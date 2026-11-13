@@ -942,6 +942,13 @@ bool AutoCell::compact(string lpSolverFile, int diffStretching, int griddedPoly,
     currentLayout.addPolygon(0, 0, width, supWidth, MET1P);
     currentLayout.addPolygon(0, height - supWidth, width, height, MET1).setNet(currentCircuit->getVddNet());
     currentLayout.addPolygon(0, height - supWidth, width, height, MET1P);
+    {   // label the supply rails with the supply net names
+        Pin gndPin, vddPin;
+        gndPin.setX(width / 2); gndPin.setY(supWidth / 2);
+        vddPin.setX(width / 2); vddPin.setY(height - supWidth / 2);
+        currentLayout.addLabel(currentCircuit->getGndNet(), gndPin);
+        currentLayout.addLabel(currentCircuit->getVddNet(), vddPin);
+    }
     currentLayout.addPolygon(0, 0, width, height, CELLBOX);
     int nWellBorder=currentRules->getIntValue(currentCircuit->getnWellBorder());
     currentLayout.addPolygon(-nWellBorder, height + nWellBorder, width + nWellBorder, cpt.getVariableVal("posNWell"), NWEL);
