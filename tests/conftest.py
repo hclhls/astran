@@ -114,3 +114,35 @@ def hd_inv(tmp_path_factory) -> HdInv:
     r = HdInv()
     r.gds, r.spice, r.drc_gds, r.drc_top = wd / "inv.gds", wd / "inv.spice", wd / "inv_tap.gds", "inv_tap"
     return r
+
+
+class FakeEnv:
+    pass
+
+
+@pytest.fixture
+def fake_env(tmp_path, monkeypatch):
+    """A fake PDK adapter registered as pdks.fakepdk.adapter, plus a fake astran-cli."""
+    import importlib.util
+    import stat
+    import sys
+    spec = importlib.util.spec_from_file_location("pdks.fakepdk.adapter", ROOT / "tests/fakepdk/adapter.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    monkeypatch.setitem(sys.modules, "pdks.fakepdk.adapter", mod)
+    template = tmp_path / "template.gds"
+    import klayout.db as kdb
+    ly = kdb.Layout()
+    ly.create_cell("RAW")
+    ly.cell("RAW").shapes(ly.layer(1, 0)).insert(kdb.DBox(0, 0, 1, 1))
+    ly.write(str(template))
+    cli = tmp_path / "fake-astran-cli"
+    cli.write_text(f"""#!/bin/sh
+if grep -q nogds "$1"; then echo "fake astran: failing"; exit 1; fi
+out=$(grep '^out ' "$1" | cut -d' ' -f2-)
+cp {template} "$out"
+""")
+    cli.chmod(cli.stat().st_mode | stat.S_IXUSR)
+    e = FakeEnv()
+    e.cli, e.out, e.adapter = cli, tmp_path / "out", mod
+    return e
