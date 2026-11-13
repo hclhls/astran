@@ -113,10 +113,12 @@ def write_astran_netlist(cell: str, out: Path) -> str:
 
 
 def write_lvs_netlist(cell: str, out: Path) -> None:
+    """LVS reference. Bodies stay on VNW / VPW as in the library: the cells are tapless and the
+    wells are named by labels in the layout, like the foundry's."""
     sc = _load(cell)
-    lines = [f".subckt {layout_name(cell)} " + " ".join(_signal_ports(sc) + list(SUPPLIES))]
+    lines = [f".subckt {layout_name(cell)} " + " ".join(_signal_ports(sc) + ["VDD", "VNW", "VPW", "VSS"])]
     for i, dev in enumerate(sc.devices):
-        lines.append(f"X{i} {_net(dev.d)} {_net(dev.g)} {_net(dev.s)} {_net(dev.b)} "
-                     f"{dev.model} w={_fmt(dev.w)} l={_fmt(dev.l)}")
+        lines.append(f"X{i} {dev.d.upper()} {dev.g.upper()} {dev.s.upper()} {dev.b.upper()} "
+                     f"{dev.model} w={_fmt(dev.w)}u l={_fmt(dev.l)}u")
     lines.append(".ends")
     Path(out).write_text("\n".join(lines) + "\n")

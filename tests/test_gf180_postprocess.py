@@ -63,3 +63,21 @@ def test_postprocess_is_deterministic(gf180_inv_raw, tmp_path):
     _, b = run(gf180_inv_raw, tmp_path / "2")
     for pair in L.values():
         assert same(region(a, pair), region(b, pair)), pair
+
+
+def test_v5_xtor_marker_covers_every_device(gf180_inv_raw, tmp_path):
+    # the deck takes a gate for a 6 V one (L = 0.7 / 0.55) unless V5_Xtor (112/1) marks it, as in the foundry cells
+    _, b = run(gf180_inv_raw, tmp_path)
+    marker = region(b, L["v5_xtor"])
+    assert not marker.is_empty()
+    assert (region(b, L["comp"]) - marker).is_empty()
+    assert (region(b, L["prBoundary"]) - marker).is_empty()
+
+
+def test_wells_are_labelled_like_the_foundry_cells(gf180_inv_raw, tmp_path):
+    # VNW on the nwell label layer (21/10), VPW on the pwell one (204/10), each inside its well
+    _, b = run(gf180_inv_raw, tmp_path)
+    for text, layer, well in (("VNW", L["nwell_label"], L["nwell"]), ("VPW", L["pwell_label"], L["pwell"])):
+        pts = [s.text.position() for s in b.top_cell().shapes(b.layer(*layer)).each() if s.is_text() and s.text.string == text]
+        assert len(pts) == 1, text
+        assert not (region(b, well) & kdb.Region(kdb.Box(pts[0].x - 1, pts[0].y - 1, pts[0].x + 1, pts[0].y + 1))).is_empty(), text

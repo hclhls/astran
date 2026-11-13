@@ -59,8 +59,8 @@ E1M2V2	0.06	* V2.x, conservative
 S1CTCT	0.25	* CO.2a
 S2CTCT	0.25	* CO.2a
 S3CTCT	0.25	* CO.2a
-E1INDF	0.23	* NP.5a
-E1IPDF	0.23	* PP.5a
+E1INDF	0.1	* tap implant enclosure (Astran uses it for the tap strips; NP.5a's 0.23 around gates comes from pnselborder)
+E1IPDF	0.1	* tap implant enclosure (see E1INDF)
 E1WNDP	0.6	* DF.4c_MV: nwell overlap of PCOMP
 S1DNWN	0.6	* conservative: mirrors DF.4c_MV
 S2M2M2	0.3	* M2.2b wide metal

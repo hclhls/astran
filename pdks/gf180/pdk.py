@@ -8,10 +8,10 @@ PINNED_VERSION = "0fe599b2afb6708d281543108caf8310912f54af"
 
 # From gf180mcu.lyp.
 LAYERS = {
-    "nwell": (21, 0), "pwell": (204, 0), "comp": (22, 0), "poly": (30, 0),
+    "nwell": (21, 0), "pwell": (204, 0), "nwell_label": (21, 10), "pwell_label": (204, 10), "comp": (22, 0), "poly": (30, 0),
     "contact": (33, 0), "metal1": (34, 0), "metal1_label": (34, 10),
     "via1": (35, 0), "metal2": (36, 0), "via2": (38, 0), "metal3": (42, 0),
-    "nplus": (32, 0), "pplus": (31, 0), "dualgate": (55, 0), "prBoundary": (0, 0),
+    "nplus": (32, 0), "pplus": (31, 0), "dualgate": (55, 0), "v5_xtor": (112, 1), "prBoundary": (0, 0),
 }
 
 

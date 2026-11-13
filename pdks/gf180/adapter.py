@@ -5,7 +5,7 @@ import klayout.db as kdb
 from pathlib import Path
 
 from pdks.common import AdapterError, CheckResult
-from pdks.gf180 import checks, netlist, pdk
+from pdks.gf180 import checks, netlist, pdk, taps
 from pdks.gf180 import postprocess as postprocess_mod
 
 DEFAULT_CELLS = ["inv", "nand2", "nor2", "aoi21"]
@@ -38,9 +38,9 @@ TECH_RUL = Path(__file__).with_name("tech.rul")
 # Starting circuit settings (tuned in Task 10).
 SETTINGS = [
     'set vddnet VDD', 'set gndnet VSS',
-    'set celltemplate "Taps w/ continuous diff"',
+    'set celltemplate "Taps close to the boundary"',
     'set hgrid 0.56', 'set vgrid 0.56', 'set rowheight 7',
-    'set supplysize 0.6', 'set nwellpos 1.76', 'set nwellborder 0.6', 'set pnselborder 0.23',
+    'set supplysize 0.6', 'set nwellpos 1.76', 'set nwellborder 0.6', 'set pnselborder 0.2',
 ]
 
 
@@ -53,7 +53,7 @@ def astran_script(astran_cell: str, netlist: Path, gds_out: Path) -> str:
               'cellgen fold 2 0',
               'cellgen place 150 3 3 4 1 4 2',
               'cellgen route 1 0 1 1',
-              'cellgen compact 1 0 50 2 1 1 0 0 0 600',
+              'cellgen compact 1 1 50 2 1 1 0 0 0 600',
               f'export layout {astran_cell} {Path(gds_out).resolve()}']
     return "\n".join(lines) + "\n"
 
@@ -63,9 +63,13 @@ def postprocess(gds_in: Path, gds_out: Path, cell: str) -> None:
 
 
 def drc(gds: Path, top: str, workdir: Path) -> list:
+    """DRC with the library's tap cell on both ends of every row (the cells themselves are tapless)."""
     workdir = Path(workdir)
-    return [("magic", checks.magic_drc(gds, top, workdir / "drc_magic")),
-            ("klayout", checks.klayout_drc(gds, top, workdir / "drc_klayout"))]
+    workdir.mkdir(parents=True, exist_ok=True)
+    tapped = workdir / "with_taps.gds"
+    name = taps.add_end_taps(gds, top, tapped)
+    return [("magic", checks.magic_drc(tapped, name, workdir / "drc_magic")),
+            ("klayout", checks.klayout_drc(tapped, name, workdir / "drc_klayout"))]
 
 
 def lvs(gds: Path, top: str, ref: Path, workdir: Path) -> CheckResult:

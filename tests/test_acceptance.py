@@ -30,6 +30,6 @@ def test_flow_is_deterministic(astran_cli, tmp_path, capsys):
 
 @pytest.mark.slow
 def test_no_pdk_names_in_generator(repo_root):
-    hits = subprocess.run(["grep", "-rniE", r"sky130|\bnpc\b|hvtp|\blicon|\bli1\b|\bmcon\b", str(repo_root / "Astran/src")],
+    hits = subprocess.run(["grep", "-rniE", r"sky130|gf180|dualgate|\bnpc\b|hvtp|\blicon|\bli1\b|\bmcon\b", str(repo_root / "Astran/src")],
                           capture_output=True, text=True).stdout
     assert hits == ""

@@ -41,17 +41,18 @@ def test_astran_netlist_maps_models_and_supplies(gf180_pdk, tmp_path):
     assert "VNW" not in text and "VPW" not in text
 
 
-def test_lvs_reference_merges_bodies_into_supplies(gf180_pdk, tmp_path):
+def test_lvs_reference_keeps_the_library_body_pins(gf180_pdk, tmp_path):
+    # the cells are tapless and labelled VNW / VPW like the foundry's, so the reference keeps four supply pins
     netlist.write_lvs_netlist("nand2", tmp_path / "r.sp")
-    lines = [l.split() for l in (tmp_path / "r.sp").read_text().splitlines() if l.startswith("X")]
+    text = (tmp_path / "r.sp").read_text()
+    head = text.splitlines()[0].split()
+    assert head[:2] == [".subckt", "astran_gf180__nand2_1"]
+    assert head[2:] == ["A1", "A2", "ZN", "VDD", "VNW", "VPW", "VSS"]
+    lines = [l.split() for l in text.splitlines() if l.startswith("X")]
     assert len(lines) == 4
     for t in lines:
-        assert t[4] in ("VDD", "VSS")
-        assert t[5] in ("nfet_06v0", "pfet_06v0")
-        assert (t[5] == "nfet_06v0") == (t[4] == "VSS")
-    widths = {(t[5], t[6], t[7]) for t in lines}
-    assert widths == {("nfet_06v0", "w=0.82", "l=0.6"), ("pfet_06v0", "w=1.13", "l=0.5")}
-    assert (tmp_path / "r.sp").read_text().splitlines()[0].startswith(".subckt astran_gf180__nand2_1 ")
+        assert t[4] == ("VPW" if t[5] == "nfet_06v0" else "VNW")
+    assert {(t[5], t[6], t[7]) for t in lines} == {("nfet_06v0", "w=0.82u", "l=0.6u"), ("pfet_06v0", "w=1.13u", "l=0.5u")}
 
 
 def test_unknown_cell_raises_adapter_error(gf180_pdk, tmp_path):

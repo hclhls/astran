@@ -1,4 +1,4 @@
-"""gf180 derived layers: implants on taps and dualgate.
+"""gf180 derived layers: implants on taps, dualgate and the V5_Xtor device marker.
 
 May add or reclassify derived layers only. Drawn poly, diffusion, contacts, metal and the
 wells are never moved or resized. All sizes are in database units (1 nm)."""
@@ -49,6 +49,21 @@ def postprocess(gds_in: Path, gds_out: Path, cell: str) -> None:
     # 2. Dualgate: the 6 V devices need it; the foundry cells carry it over the whole cell.
     dg = box.sized(DUALGATE_CELL_MARGIN, 2) + comp.sized(DUALGATE_ENCLOSE_COMP, 2) + poly.sized(DUALGATE_ENCLOSE_POLY, 2)
     put("dualgate", reg("dualgate") + dg.merged())
+
+    # 3. V5_Xtor marks the devices as 5 V ones (gate lengths 0.6 / 0.5); the foundry cells mark the whole cell.
+    put("v5_xtor", reg("v5_xtor") + (box + comp).merged())
+
+    # 4. Well labels, as in the foundry cells: VNW names the nwell, VPW the substrate (lvpwell) net.
+    pwell = reg("pwell")
+    for text, layer, well in (("VNW", "nwell_label", nwell), ("VPW", "pwell_label", pwell)):
+        if well.is_empty():
+            raise AdapterError(f"{gds_in}: no {layer[:5]} to label {text}")
+        box = well.bbox()
+        inside = well & kdb.Region(kdb.Box(box.left, box.bottom, box.left + 2 * DUALGATE_CELL_MARGIN, box.top))
+        p = inside.bbox()
+        # a point well inside the well, near the cell's left edge and its boundary-side edge
+        y = p.top - 1 if text == "VNW" else p.bottom + 1
+        top.shapes(ly.layer(*LAYERS[layer])).insert(kdb.Text(text, kdb.Trans(max(p.left, box.left) + DUALGATE_CELL_MARGIN, y)))
 
     top.name = layout_name(cell) if cell else top.name
     ly.write(str(gds_out))
