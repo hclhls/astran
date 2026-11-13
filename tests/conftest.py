@@ -76,3 +76,41 @@ def generated_inv_raw(astran_cli, tmp_path_factory) -> Path:
     r = subprocess.run([str(astran_cli), "cell.run"], cwd=wd, capture_output=True, text=True, timeout=900)
     assert r.returncode == 0, r.stdout
     return gds
+
+
+class HdInv:
+    """The foundry inverter, extracted from the hd library into separate files."""
+    pass
+
+
+@pytest.fixture(scope="session")
+def hd_inv(tmp_path_factory) -> HdInv:
+    import re
+    import klayout.db as kdb
+    from pdks.sky130 import pdk
+    root = pdk.pdk_dir() / "libs.ref/sky130_fd_sc_hd"
+    wd = tmp_path_factory.mktemp("hd_inv")
+    ly = kdb.Layout()
+    ly.read(str(root / "gds/sky130_fd_sc_hd.gds"))
+
+    def save(top, path):
+        opt = kdb.SaveLayoutOptions()
+        opt.select_all_cells = False
+        opt.add_cell(top.cell_index())
+        ly.write(str(path), opt)
+
+    inv = ly.cell("sky130_fd_sc_hd__inv_1")
+    tap = ly.cell("sky130_fd_sc_hd__tapvpwrvgnd_1")
+    save(inv, wd / "inv.gds")
+    # hd cells are tapless; a lone one legitimately fails magic's tap/latch-up rules
+    # (nwell.4, LU.2, LU.3). The DRC reference is the inverter next to a tap cell.
+    top = ly.create_cell("inv_tap")
+    top.insert(kdb.CellInstArray(tap.cell_index(), kdb.Trans(0, 0)))
+    top.insert(kdb.CellInstArray(inv.cell_index(), kdb.Trans(tap.bbox().width(), 0)))
+    save(top, wd / "inv_tap.gds")
+    text = (root / "spice/sky130_fd_sc_hd.spice").read_text()
+    m = re.search(r"^\.subckt sky130_fd_sc_hd__inv_1 .*?^\.ends\n", text, re.S | re.M)
+    (wd / "inv.spice").write_text(m.group(0))
+    r = HdInv()
+    r.gds, r.spice, r.drc_gds, r.drc_top = wd / "inv.gds", wd / "inv.spice", wd / "inv_tap.gds", "inv_tap"
+    return r

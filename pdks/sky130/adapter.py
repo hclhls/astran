@@ -1,11 +1,12 @@
 """sky130 adapter: the contract documented in pdks/README.md."""
+import re
 import shutil
 
 import klayout.db as kdb
 from pathlib import Path
 
 from pdks.common import AdapterError, CheckResult
-from pdks.sky130 import netlist, pdk
+from pdks.sky130 import checks, netlist, pdk
 from pdks.sky130 import postprocess as postprocess_mod
 
 DEFAULT_CELLS = ["inv", "nand2", "nor2", "a21oi"]
@@ -62,11 +63,13 @@ def postprocess(gds_in: Path, gds_out: Path, cell: str) -> None:
 
 
 def drc(gds: Path, top: str, workdir: Path) -> list:
-    raise NotImplementedError
+    workdir = Path(workdir)
+    return [("magic", checks.magic_drc(gds, top, workdir / "drc_magic")),
+            ("klayout", checks.klayout_drc(gds, top, workdir / "drc_klayout"))]
 
 
 def lvs(gds: Path, top: str, ref: Path, workdir: Path) -> CheckResult:
-    raise NotImplementedError
+    return checks.netgen_lvs(gds, top, ref, Path(workdir) / "lvs")
 
 
 def cell_size(gds: Path, top: str) -> tuple:
@@ -81,8 +84,18 @@ def cell_size(gds: Path, top: str) -> tuple:
 
 
 def reference_size(cell: str) -> tuple:
-    raise NotImplementedError
+    """SIZE of the foundry _1 macro, from the hd LEF."""
+    name = netlist.hd_name(cell)
+    lef = pdk.pdk_dir() / "libs.ref/sky130_fd_sc_hd/lef/sky130_fd_sc_hd.lef"
+    text = lef.read_text()
+    m = re.search(rf"^MACRO {name}\s*$.*?^\s*SIZE\s+([\d.]+)\s+BY\s+([\d.]+)\s*;", text, re.S | re.M)
+    if not m:
+        raise AdapterError(f"{name} not found in {lef}")
+    return float(m[1]), float(m[2])
 
 
 def notes() -> list:
-    raise NotImplementedError
+    sw = " ".join(f"{k}={v}" for k, v in checks.KLAYOUT_SWITCHES.items())
+    return [f"klayout DRC deck switches: {sw}",
+            "Astran cells include well taps and hd cells do not, so the area ratio is "
+            "pessimistic for Astran by the tap area."]

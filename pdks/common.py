@@ -1,4 +1,5 @@
 """PDK-neutral helpers shared by the driver and the adapters."""
+import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,7 +17,7 @@ class CheckResult:
     detail: str       # one line for the result table
 
 
-def run_tool(argv: list, cwd: Path, log: Path, timeout: int = 600) -> int:
+def run_tool(argv: list, cwd: Path, log: Path, timeout: int = 600, env: dict = None) -> int:
     """Run a command with output going to `log`. Returns its exit code, or -1 on
     timeout or when the executable cannot be started."""
     Path(cwd).mkdir(parents=True, exist_ok=True)
@@ -24,7 +25,8 @@ def run_tool(argv: list, cwd: Path, log: Path, timeout: int = 600) -> int:
     with open(log, "w") as f:
         try:
             r = subprocess.run([str(a) for a in argv], cwd=cwd, stdout=f,
-                               stderr=subprocess.STDOUT, timeout=timeout)
+                               stderr=subprocess.STDOUT, timeout=timeout,
+                               stdin=subprocess.DEVNULL, env={**os.environ, **(env or {})})
         except subprocess.TimeoutExpired:
             f.write(f"\n[timeout after {timeout}s]\n")
             return -1
