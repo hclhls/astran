@@ -46,7 +46,8 @@ metal1 value, "CT" a contact value, "VI" a via1 value, "M2" a metal2 value.
 - **DRC is run with the library tap cell.** klayout's DF.13_MV / DF.14_MV want a tap within 15 um, and the
   foundry's own lone `inv_1` fails them (`test_klayout_drc_flags_tapless_foundry_inv_alone`). `taps.py` places
   `gf180mcu_fd_sc_mcu7t5v0__filltie`, read from the installed PDK, at both ends of every row and every 24 um
-  along it, and DRC runs on that. The rules are not waived. LVS runs on the bare cell.
+  along it (the cell before a mid-row tap is repeated after it, so no cell-to-cell interface drops out of the
+  check), and DRC runs on that. The rules are not waived. LVS runs on the bare cell.
 - **Body pins.** The LVS reference keeps `VDD VNW VPW VSS` with the bodies on VNW/VPW, and the layout labels the
   nwell `VNW` (21/10) and the substrate `VPW` (204/10), exactly like the foundry cells.
   Reference widths carry the `u` suffix (magic writes `w=1.22u`; without it netgen reads metres).
@@ -73,9 +74,11 @@ dualgate and V5_Xtor, and labels the wells.
 
 ## Checks
 
-- DRC gate: magic `drc(full)` style, zero errors; klayout through the PDK's own `run_drc.py`, variant C
-  (5 metal layers, 9K top metal, the PDK default). `main.drc` alone is only a template and runs no rules; the
-  checker fails if the log shows no rule executed.
+- DRC gate: magic `drc(full)` style, zero errors; klayout on the gf180 deck assembled the way the PDK's `run_drc.py`
+  builds it (`main.drc` is only a header and runs no rules: the deck is `main.drc` + every rule table + `tail.drc`),
+  variant C (5 metal layers, 9K top metal, the PDK default). klayout exits 0 even when it finds violations, so
+  anything else, a log without a rule executed, or one that never reaches the end of the deck is a failure: an
+  aborted deck leaves a well-formed report holding only the rules that ran before the abort.
 - klayout switches that are off, each with its reason (printed under the table):
   connectivity off: the connectivity-based rules need a full netlist context, not one standard cell;
   density off: a die-wide density rule cannot be met by a single cell;
@@ -94,7 +97,6 @@ Gridded poly (the second `1`) matters: with `1 0 ...` HiGHS reached its 600 s li
 
 - `pdks/common.py`: `logical_lines` (SPICE/CDL logical-line reader) moved here from sky130's `netlist.py`, since
   both adapters use it. Neutral; sky130 behaviour unchanged.
-- `flake.nix`: `docopt` added to the dev shell's Python, which the PDK's `run_drc.py` imports.
 - `tests/`: `conftest.py` fixtures, `test_acceptance.py` also forbids `gf180` and `dualgate` in `Astran/src`,
   `test_gate_length.py` (Astran already draws each gate at its own transistor's length).
 - `Astran/src`: nothing.

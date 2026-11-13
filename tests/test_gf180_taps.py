@@ -77,3 +77,38 @@ def test_inserting_taps_does_not_overlap_or_move_cells_relative_to_each_other(re
         it.next()
     assert pieces.merged().area() == total                          # boundaries abut, none overlaps another
     assert pieces.merged().count() == 1                             # three equally long rows stacked: one rectangle, no gaps
+
+
+def test_tap_insertion_keeps_every_neighbour_pair_adjacent_somewhere(ref_inv, tmp_path):
+    # Review finding I1: a tap cell dropped between two cells removes that interface from the abutment check
+    import klayout.db as kdb
+    others = []
+    for k in range(8):                       # eight uniquely named neighbours: every interface occurs exactly once
+        ly = kdb.Layout()
+        ly.read(str(ref_inv.gds))
+        ly.cell(ref_inv.top).name = f"other_{k}"
+        ly.write(str(tmp_path / f"other_{k}.gds"))
+        others.append((tmp_path / f"other_{k}.gds", f"other_{k}"))
+    arr = build_abutment(ref_inv.gds, ref_inv.top, others, adapter.BOUNDARY_LAYER, tmp_path / "arr.gds")
+    name = taps.add_end_taps(tmp_path / "arr.gds", arr, tmp_path / "t.gds")
+
+    def pairs(gds, top):
+        lay = kdb.Layout()
+        lay.read(str(gds))
+        li = lay.layer(*LAYERS["prBoundary"])
+        it = kdb.RecursiveShapeIterator(lay, lay.cell(top), li)
+        rows = {}
+        while not it.at_end():
+            leaf = it.cell().name.split("$")[0]
+            if leaf != "gf180mcu_fd_sc_mcu7t5v0__filltie":
+                tr = it.trans()
+                rows.setdefault((tr * it.shape().bbox()).bottom, []).append(((tr * it.shape().bbox()), leaf, tr.is_mirror()))
+            it.next()
+        out = set()
+        for items in rows.values():
+            items.sort(key=lambda t: t[0].left)
+            out |= {(a[1:], b[1:]) for a, b in zip(items, items[1:]) if a[0].right == b[0].left}
+        return out
+
+    before, after = pairs(tmp_path / "arr.gds", arr), pairs(tmp_path / "t.gds", name)
+    assert before and before <= after, before - after

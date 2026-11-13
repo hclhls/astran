@@ -87,3 +87,39 @@ def test_unreadable_gds_is_a_failure(tmp_path):
     for r in (checks.magic_drc(g, "x", tmp_path / "a"), checks.klayout_drc(g, "x", tmp_path / "b"),
               checks.netgen_lvs(g, "x", g, tmp_path / "c")):
         assert not r.ok and r.count == -1
+
+
+def fake_klayout(tmp_path, body):
+    """A `klayout` that writes `body` as its behaviour; -rd report=<file> is honoured by the script text."""
+    d = tmp_path / "kbin"
+    d.mkdir()
+    p = d / "klayout"
+    p.write_text("#!/bin/sh\n" + body)
+    p.chmod(p.stat().st_mode | stat.S_IEXEC)
+    return d
+
+
+EMPTY_REPORT = 'for a in "$@"; do case "$a" in report=*) r="${a#report=}";; esac; done\n' \
+               'printf \'<?xml version="1.0"?><report-database><items></items></report-database>\' > "$r"\n'
+
+
+# Review finding C1: a deck that aborts after some rules leaves a well-formed, empty report behind
+def test_aborted_klayout_deck_is_a_failure(monkeypatch, ref_inv, tmp_path):
+    body = 'echo "Executing rule M1.1"\n' + EMPTY_REPORT + 'echo "main DRC Total Run time 1 seconds"\nexit 1\n'
+    monkeypatch.setenv("PATH", str(fake_klayout(tmp_path, body)))
+    r = checks.klayout_drc(ref_inv.gds, ref_inv.top, tmp_path / "k")
+    assert not r.ok and r.count == -1 and "did not complete" in r.detail
+
+
+def test_klayout_deck_that_never_reaches_its_end_is_a_failure(monkeypatch, ref_inv, tmp_path):
+    body = 'echo "Executing rule M1.1"\n' + EMPTY_REPORT + "exit 0\n"       # exit 0 but no end-of-deck line
+    monkeypatch.setenv("PATH", str(fake_klayout(tmp_path, body)))
+    r = checks.klayout_drc(ref_inv.gds, ref_inv.top, tmp_path / "k")
+    assert not r.ok and r.count == -1
+
+
+def test_klayout_deck_that_completes_cleanly_passes(monkeypatch, ref_inv, tmp_path):
+    body = 'echo "Executing rule M1.1"\n' + EMPTY_REPORT + 'echo "main DRC Total Run time 1 seconds"\nexit 0\n'
+    monkeypatch.setenv("PATH", str(fake_klayout(tmp_path, body)))
+    r = checks.klayout_drc(ref_inv.gds, ref_inv.top, tmp_path / "k")
+    assert r.ok and r.count == 0

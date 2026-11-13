@@ -48,7 +48,8 @@ array (self, mirrored self, flipped rows, and each neighbour) that the driver ru
 7. Make every checker report a crash, timeout or missing report as a failure (`ok=False, count=-1`).
 8. Test the checkers on the foundry's own cells before trusting them on Astran output, and check that each one
    reports a deliberate violation: a deck entry point can run without executing any rule (gf180's `main.drc` is
-   only a template; the PDK's `run_drc.py` builds the real deck), and that looks exactly like "0 errors".
+   only a header; the real deck is it plus the rule tables, as the PDK's `run_drc.py` assembles it), and that
+   looks exactly like "0 errors". Also check that a deck which aborts part-way is a failure.
 9. Run the foundry's own cell through every checker alone. If it fails (tap-distance rules for a tapless library),
    `drc` may check a layout with the library's helper cells added (gf180: tap cells at the row ends) provided the
    rules still run and the cell under test is not changed; say so in the PDK's README. Rows longer than the

@@ -50,7 +50,8 @@ def _pieces(ly: kdb.Layout, top: kdb.Cell) -> list:
 
 def add_end_taps(gds_in: Path, top: str, gds_out: Path) -> str:
     """Write `gds_out` holding the cells of `top` in rows with a tap cell on both ends of each row and
-    along it every MAX_SEGMENT. Returns the new top cell name."""
+    along it every MAX_SEGMENT. Returns the new top cell name. Cells keep every interface they have in the input:
+    the cell before a mid-row tap is repeated after it."""
     src = kdb.Layout()
     src.read(str(gds_in))
     if src.cell(top) is None:
@@ -93,17 +94,26 @@ def add_end_taps(gds_in: Path, top: str, gds_out: Path) -> str:
             t = kdb.Trans(kdb.Trans.M0, x, top_y) if flipped else kdb.Trans(x, bottom)
             wrapper.insert(kdb.CellInstArray(tie.cell_index(), t))
 
+        def emit(inst, box, x):
+            """Place `inst` (originally at `box`) with its left edge at x."""
+            wrapper.insert(kdb.CellInstArray(child(src.cell(inst.cell_index)).cell_index(),
+                                             kdb.Trans(inst.trans.rot, inst.trans.is_mirror(),
+                                                       inst.trans.disp + kdb.Vector(x - box.left, 0))))
+
         put_tie(left - tie_w)
-        shift, last_tap = 0, left
-        for inst, box in items:
-            if box.right + shift - last_tap > MAX_SEGMENT and box.left != left:
-                put_tie(box.left + shift)
-                shift += tie_w
-                last_tap = box.left + shift
-            moved = kdb.CellInstArray(child(src.cell(inst.cell_index)).cell_index(),
-                                      kdb.Trans(inst.trans.rot, inst.trans.is_mirror(), inst.trans.disp + kdb.Vector(shift, 0)))
-            wrapper.insert(moved)
-        put_tie(right + shift)
+        cursor, last_tap = left, left
+        for k, (inst, box) in enumerate(items):
+            if k and cursor + box.width() - last_tap > MAX_SEGMENT:
+                # A tap between two cells would remove their interface from the check, so the cell before
+                # the tap is placed again after it: previous | tap, then previous | this.
+                put_tie(cursor)
+                cursor += tie_w
+                last_tap = cursor
+                emit(*items[k - 1], cursor)
+                cursor += items[k - 1][1].width()
+            emit(inst, box, cursor)
+            cursor += box.width()
+        put_tie(cursor)
 
     opt = kdb.SaveLayoutOptions()
     opt.select_all_cells = False

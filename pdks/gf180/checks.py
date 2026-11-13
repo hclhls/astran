@@ -4,19 +4,34 @@ A checker that crashes, times out, or leaves no usable report is a failure
 (ok=False, count=-1), never "0 errors"."""
 import re
 import shutil
-import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from pdks.common import CheckResult, run_tool
 from pdks.gf180 import pdk
 
-# The PDK's own runner (libs.tech/klayout/drc/run_drc.py) assembles the rule deck: main.drc alone is only a
-# template and runs no rules. Variant C is the PDK default stack (5 metal layers, 9K top metal).
-# Switched off, each for a cell-level check:
+# klayout runs the gf180 deck the way the PDK's run_drc.py builds it: main.drc is only a header and runs no
+# rules, so the deck is main.drc + every rule table + tail.drc, with layers_def.drc beside it. Variant C is the PDK
+# default stack (5 metal layers, 9K top metal). Switched off, each for a cell-level check:
 #   connectivity: needs a full netlist context (nwell/lvpwell/dnwell connectivity), not one standard cell
 #   density, antenna: chip-level checks; a single cell cannot meet a die-wide density
 KLAYOUT_SWITCHES = {"variant": "C", "connectivity": "false", "density": "false", "antenna": "false"}
+_NOT_TABLES = ("antenna", "density", "main", "layers_def", "tail")
+_DECK_RD = {"thr": "2", "metal_top": "9K", "mim_option": "B", "metal_level": "5LM", "verbose": "false",
+            "feol": "true", "beol": "true", "offgrid": "true", "conn_drc": "false", "density": "false",
+            "split_deep": "false", "slow_via": "false", "run_mode": "flat", "table_name": "main"}
+
+
+def _assemble_deck(run_dir: Path) -> Path:
+    src = pdk.pdk_dir() / "libs.tech/klayout/drc/rule_decks"
+    tables = sorted(f for f in src.glob("*.drc") if f.stem not in _NOT_TABLES)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src / "layers_def.drc", run_dir / "layers_def.drc")
+    deck = run_dir / "main.drc"
+    with open(deck, "wb") as out:
+        for f in [src / "main.drc", *tables, src / "tail.drc"]:
+            out.write(f.read_bytes())
+    return deck
 
 
 def _fail(tool: str, reason: str, report: Path) -> CheckResult:
@@ -84,17 +99,25 @@ def klayout_drc(gds: Path, top: str, workdir: Path) -> CheckResult:
     shutil.rmtree(run_dir, ignore_errors=True)
     workdir.mkdir(parents=True, exist_ok=True)
     log = workdir / "klayout_drc.log"
-    gds = Path(gds).resolve()
-    report = run_dir / f"{gds.stem}_main.lyrdb"
-    argv = [sys.executable, pdk.pdk_dir() / "libs.tech/klayout/drc/run_drc.py", f"--path={gds}",
-            f"--variant={KLAYOUT_SWITCHES['variant']}", f"--topcell={top}", f"--run_dir={run_dir}",
-            "--no_connectivity"]
+    report = run_dir / "klayout_drc.lyrdb"
+    try:
+        deck = _assemble_deck(run_dir)
+    except OSError as e:
+        return _fail("klayout", f"cannot assemble the deck: {e}", report)
+    argv = ["klayout", "-b", "-r", deck, "-rd", f"input={Path(gds).resolve()}", "-rd", f"topcell={top}",
+            "-rd", f"report={report}"]
+    for k, v in _DECK_RD.items():
+        argv += ["-rd", f"{k}={v}"]
     rc = run_tool(argv, workdir, log)
-    if rc not in (0, 1):
+    # klayout exits 0 even when it finds violations; anything else means the deck did not run to its end,
+    # and a report left behind by an aborted deck only holds the rules that ran before the abort.
+    if rc != 0:
         return _fail("klayout", f"exit code {rc}, see {log}", report)
     text = log.read_text(errors="replace")
     if "Executing rule" not in text:
         return _fail("klayout", f"the deck ran no rules, see {log}", report)
+    if "DRC Total Run time" not in text:
+        return _fail("klayout", f"the deck did not reach its end, see {log}", report)
     try:
         items = ET.parse(report).getroot().find("items")
         if items is None:
