@@ -103,4 +103,5 @@ def reference_size(cell: str) -> tuple:
 def notes() -> list:
     sw = " ".join(f"{k}={v}" for k, v in checks.KLAYOUT_SWITCHES.items())
     return [f"klayout DRC (run_drc.py) switches: {sw}",
-            "Reference cells are tapless; the area ratio is against their prBoundary."]
+            "Cells are tapless like the reference; DRC is run with the library tap cell at the row ends. "
+            "The area ratio is against the reference prBoundary."]

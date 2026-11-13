@@ -56,14 +56,16 @@ Read the INSTALL.txt file.
 
 ## Open PDKs
 
-Astran can generate cells in open PDKs through per-PDK adapters in `pdks/`. The first is SkyWater
-sky130 (`pdks/sky130/`), compared against `sky130_fd_sc_hd`.
+Astran can generate cells in open PDKs through per-PDK adapters in `pdks/`: SkyWater sky130
+(`pdks/sky130/`, compared against `sky130_fd_sc_hd`) and GlobalFoundries gf180mcuD (`pdks/gf180/`, compared
+against `gf180mcu_fd_sc_mcu7t5v0`).
 
 ```
 nix develop                              # librelane EDA tools, HiGHS, g++, pytest
 make -C Astran -f cli.mk                 # wx-free command-line build: Astran/build/bin/astran-cli
 python3 astran_pdk.py sky130             # inv, nand2, nor2, a21oi: DRC alone and abutted, LVS, area
 python3 astran_pdk.py sky130 nand2 --out out/mine
+python3 astran_pdk.py gf180              # inv, nand2, nor2, aoi21 against the 7t library
 ```
 
 The sky130A PDK is looked up in `$ASTRAN_SKY130_DIR`, then `${PDK_ROOT:-~/.ciel}/sky130A`, then the ciel
@@ -81,3 +83,16 @@ a21oi  ok   pass  pass      pass  2.380×3.400  1.840×2.720  8.092  5.005     1
 The Astran cells carry their own well taps and are 3.4 um tall (not drop-in with hd, which is
 2.72 um tall and tapless), so the ratio is pessimistic for Astran. See `pdks/sky130/README.md`
 for the details and `pdks/README.md` for how to add a PDK.
+
+The gf180 adapter fetches its PDK with `ciel enable --pdk-family gf180mcu 0fe599b2afb6708d281543108caf8310912f54af`
+and generates tapless cells like the 7t library (DRC runs with the library tap cell at the row ends):
+
+```
+cell   gen  drc   drc-abut  lvs   w×h          ref w×h      area    ref area  ratio
+inv    ok   pass  pass      pass  2.240×3.920  2.240×3.920  8.781   8.781     1.00
+nand2  ok   pass  pass      pass  3.360×3.920  2.800×3.920  13.171  10.976    1.20
+nor2   ok   pass  pass      pass  3.360×3.920  3.360×3.920  13.171  13.171    1.00
+aoi21  ok   pass  pass      pass  4.480×3.920  4.480×3.920  17.562  17.562    1.00
+```
+
+See `pdks/gf180/README.md` for the details.

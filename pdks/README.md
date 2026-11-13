@@ -24,6 +24,8 @@ def notes() -> list[str]                       # lines printed under the table
 `CheckResult(ok, count, report, detail)`: a checker that crashes, times out or leaves no
 report returns `ok=False, count=-1`; it never reports "0 errors".
 
+`pdks.common.logical_lines(text)` reads SPICE/CDL as logical lines (comments dropped, `+` continuations joined).
+
 `pdks.common.build_abutment(cell_gds, top, neighbours, BOUNDARY_LAYER, out)` builds the abutment
 array (self, mirrored self, flipped rows, and each neighbour) that the driver runs through `drc`.
 
@@ -44,4 +46,13 @@ array (self, mirrored self, flipped rows, and each neighbour) that the driver ru
 5. Return a complete `.run` script from `astran_script`, ending in `export layout`.
 6. Put everything PDK-specific (derived layers, checks, naming) in the adapter, never in `Astran/src` or the driver.
 7. Make every checker report a crash, timeout or missing report as a failure (`ok=False, count=-1`).
-8. Test the checkers on the foundry's own cells before trusting them on Astran output.
+8. Test the checkers on the foundry's own cells before trusting them on Astran output, and check that each one
+   reports a deliberate violation: a deck entry point can run without executing any rule (gf180's `main.drc` is
+   only a template; the PDK's `run_drc.py` builds the real deck), and that looks exactly like "0 errors".
+9. Run the foundry's own cell through every checker alone. If it fails (tap-distance rules for a tapless library),
+   `drc` may check a layout with the library's helper cells added (gf180: tap cells at the row ends) provided the
+   rules still run and the cell under test is not changed; say so in the PDK's README. Rows longer than the
+   helper cell's reach need the helper along the row as well.
+10. Decide the LVS body connections from what the library does: a tapless library names its wells with labels and
+    keeps body pins in its netlist (gf180); a library whose cells carry taps ties them to the supplies (sky130).
+    Units in the reference netlist matter: magic writes `w=1.22u`, and a bare `1.22` reads as metres.

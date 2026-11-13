@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import klayout.db as kdb
 import pytest
 
@@ -40,3 +42,21 @@ def test_gate_lengths_match_reference_netlist(astran_cli, gf180_pdk, tmp_path, c
     p = (gates & nwell).merged()
     assert {q.bbox().width() for q in n.each()} == {600}      # nfet_06v0 L = 0.6 um
     assert {q.bbox().width() for q in p.each()} == {500}      # pfet_06v0 L = 0.5 um
+
+
+README = Path(__file__).resolve().parent.parent / "pdks/gf180/README.md"
+
+
+def test_klayout_switches_are_documented():
+    from pdks.gf180 import checks
+    text = README.read_text()
+    for key, value in checks.KLAYOUT_SWITCHES.items():
+        if value == "false":
+            line = next((l for l in text.splitlines() if key in l and "off" in l.lower()), None)
+            assert line and len(line.split()) > 6, f"switch {key}=false needs a reason in pdks/gf180/README.md"
+
+
+def test_readme_lists_every_layer_of_the_adapter():
+    text = README.read_text()
+    for name, (layer, datatype) in LAYERS.items():
+        assert f"{layer}/{datatype}" in text, f"{name} ({layer}/{datatype}) missing from pdks/gf180/README.md"
