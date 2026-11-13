@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pdks.common import AdapterError, CheckResult
 from pdks.sky130 import netlist, pdk
+from pdks.sky130 import postprocess as postprocess_mod
 
 DEFAULT_CELLS = ["inv", "nand2", "nor2", "a21oi"]
 TOOLS = ["magic", "netgen", "klayout", "highs"]
@@ -57,7 +58,7 @@ def astran_script(astran_cell: str, netlist: Path, gds_out: Path) -> str:
 
 
 def postprocess(gds_in: Path, gds_out: Path, cell: str) -> None:
-    raise NotImplementedError
+    postprocess_mod.postprocess(gds_in, gds_out, cell)
 
 
 def drc(gds: Path, top: str, workdir: Path) -> list:
