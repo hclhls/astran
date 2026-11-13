@@ -27,6 +27,16 @@ def test_astran_script_is_complete(tmp_path):
     assert text.strip().splitlines()[-1].startswith("export layout INV_1 ")
 
 
+def test_script_variants_differ_only_in_nwellpos(tmp_path):
+    v = adapter.astran_script_variants("INV_1", tmp_path / "n.sp", tmp_path / "o.gds")
+    assert len(v) == len(adapter.NWELLPOS) > 1
+    assert v[0] == adapter.astran_script("INV_1", tmp_path / "n.sp", tmp_path / "o.gds")
+    pos = [[l for l in t.splitlines() if l.startswith("set nwellpos")] for t in v]
+    assert [p[0] for p in pos] == [f"set nwellpos {h}" for h in adapter.NWELLPOS]
+    assert {"\n".join(l for l in t.splitlines() if not l.startswith("set nwellpos")) for t in v} == \
+        {"\n".join(l for l in v[0].splitlines() if not l.startswith("set nwellpos"))}
+
+
 def test_inv_generates_raw_gds(gf180_inv_raw):
     ly = kdb.Layout()
     ly.read(str(gf180_inv_raw))

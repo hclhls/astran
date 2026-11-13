@@ -40,15 +40,19 @@ SETTINGS = [
     'set vddnet VDD', 'set gndnet VSS',
     'set celltemplate "Taps close to the boundary"',
     'set hgrid 0.56', 'set vgrid 0.56', 'set rowheight 7',
-    'set supplysize 0.6', 'set nwellpos 1.76', 'set nwellborder 0.6', 'set pnselborder 0.2',
+    'set supplysize 0.6', 'set nwellborder 0.6', 'set pnselborder 0.2',
 ]
+# n-well boundary heights (um) tried in turn, the first that yields a layout wins. Where it sits splits the
+# 3.92 um between the N and the P region: a cell whose N region needs a stack of M1 tracks that does not fit
+# is infeasible at 1.76 and fits higher, while others (xnor2: 1.92 only) fail higher up, so there is no one value.
+NWELLPOS = (1.76, 1.92, 2.0, 2.08, 2.16)
 
 
-def astran_script(astran_cell: str, netlist: Path, gds_out: Path) -> str:
+def astran_script(astran_cell: str, netlist: Path, gds_out: Path, nwellpos: float = NWELLPOS[0]) -> str:
     lines = ['set lpsolve "highs"',
              f'load technology "{TECH_RUL}"',
              f'load netlist "{Path(netlist).resolve()}"']
-    lines += SETTINGS
+    lines += SETTINGS + [f'set nwellpos {nwellpos}']
     lines += [f'cellgen select {astran_cell}',
               'cellgen fold 2 0',
               'cellgen place 150 3 3 4 1 4 2',
@@ -56,6 +60,11 @@ def astran_script(astran_cell: str, netlist: Path, gds_out: Path) -> str:
               'cellgen compact 1 1 50 2 1 1 0 0 0 600',
               f'export layout {astran_cell} {Path(gds_out).resolve()}']
     return "\n".join(lines) + "\n"
+
+
+def astran_script_variants(astran_cell: str, netlist: Path, gds_out: Path) -> list:
+    """One script per n-well height, in the order they are tried (see NWELLPOS)."""
+    return [astran_script(astran_cell, netlist, gds_out, h) for h in NWELLPOS]
 
 
 def postprocess(gds_in: Path, gds_out: Path, cell: str) -> None:

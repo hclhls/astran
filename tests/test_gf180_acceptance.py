@@ -22,6 +22,16 @@ def test_four_cells_clean(astran_cli, gf180_pdk, tmp_path, capsys):
 
 
 @pytest.mark.slow
+def test_cell_needing_the_well_search_is_clean(astran_cli, gf180_pdk, tmp_path, capsys):
+    # oai21 is infeasible at the library's well height; the second height works and is legalised
+    rc = astran_pdk.main(["gf180", "oai21", "--out", str(tmp_path), "--astran", str(astran_cli)])
+    out = capsys.readouterr().out
+    assert row(out, "oai21").split()[1:5] == ["ok", "pass", "pass", "pass"], out
+    assert rc == 0
+    assert "attempt 2 of" in (tmp_path / "oai21" / "astran.log").read_text()
+
+
+@pytest.mark.slow
 def test_flow_is_deterministic(astran_cli, gf180_pdk, tmp_path, capsys):
     cells = ("inv", "nor2")
     for i in range(2):

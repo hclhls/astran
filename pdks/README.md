@@ -12,6 +12,7 @@ def layout_name(cell: str) -> str              # top cell name of the final GDS
 def write_astran_netlist(cell: str, out: Path) -> str   # returns the Astran cell name
 def write_lvs_netlist(cell: str, out: Path) -> None
 def astran_script(astran_cell: str, netlist: Path, gds_out: Path) -> str   # full .run text
+def astran_script_variants(astran_cell: str, netlist: Path, gds_out: Path) -> list[str]   # optional
 def postprocess(gds_in: Path, gds_out: Path, cell: str) -> None
 def drc(gds: Path, top: str, workdir: Path) -> list[tuple[str, CheckResult]]
 def lvs(gds: Path, top: str, ref: Path, workdir: Path) -> CheckResult
@@ -19,6 +20,9 @@ def cell_size(gds: Path, top: str) -> tuple[float, float]       # CELLBOX w, h i
 def reference_size(cell: str) -> tuple[float, float]            # foundry cell w, h in um
 def notes() -> list[str]                       # lines printed under the table
 ```
+
+`astran_script_variants` is optional: the driver runs its scripts in order, in one `astran.log`, and stops at the
+first that exits 0 and writes the GDS; without it the one `astran_script` is run.
 
 `AdapterError` (from `pdks.common`) carries a message that is shown to the user unchanged.
 `CheckResult(ok, count, report, detail)`: a checker that crashes, times out or leaves no

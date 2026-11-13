@@ -67,11 +67,26 @@ rule and gf180 several, the conservative value is used: `S1DFP1` (0.3, PL.5b_MV)
 (0.23 around gates) is met by the half-cell implants (`pnselborder 0.2`, the foundry's implant overhang; 0.23
 violated PP.3cii / NP.3cii against the neighbouring tap cell).
 
-## Post-processing (derived layers only)
+## Post-processing
 
-`postprocess.py` never moves or resizes poly, diffusion, contacts, metal or the wells. It draws dualgate and
-V5_Xtor and labels the wells (VNW and VPW, inside the cell box near its left edge, as the foundry does).
-The tapless cells have no tap strips, so there is nothing to untangle between the n and p implants.
+`postprocess.py` first legalises what Astran cannot express, then draws the derived layers. Poly and the
+transistors' diffusions, contacts and wiring keep their shape and their positions relative to each other. On the
+four default cells every legalisation step is a no-op (`test_drawn_geometry_untouched`).
+
+1. **Taps removed.** Astran fills a gap in a transistor row with a tap on the rail. The library is tapless, and a
+   substrate tap shorts VSS to the VPW pin. The tap's diffusion, contacts and implant island are deleted.
+2. **Notches filled.** Astran's compaction has no same-net notch rule. Metal1 gaps under 0.23 um (M1.2a) are
+   closed, and poly gaps under 0.24 um (PL.3a) where the fill stays 0.3 um away from diffusion.
+3. **Library well edge restored.** A cell generated with a raised n-well (see "Well search") gets the n-well back
+   down to 1.76 um in a strip at both cell edges, as wide as a neighbour's n-well reaches into the cell
+   (0.605 um); p-well and implants follow. Every cell so presents the library's well edge and abuts the tap cell
+   and the other cells.
+4. **Padding.** Where that strip would be within 0.6 um of the cell's N diffusion (DF.8), the cell is widened by
+   one 0.56 um track on that side (two at most, then it is an error): rails, wells, implants and the boundary
+   are extended, nothing else moves.
+
+Then dualgate and V5_Xtor are drawn and the wells labelled (VNW and VPW, inside the cell box near its left edge,
+as the foundry does).
 
 ## Checks
 
@@ -85,13 +100,16 @@ The tapless cells have no tap strips, so there is nothing to untangle between th
   density off: a die-wide density rule cannot be met by a single cell;
   antenna off: a chip-level check, not meaningful for one cell.
 - LVS: magic extraction + netgen with the PDK's `gf180mcuD_setup.tcl` against the library's transistor netlist.
-  Nothing is waived or black-boxed.
+  Nothing is waived or black-boxed. When Astran has folded a series stack into parallel copies (each with its own
+  internal nets, which netgen does not merge), `splitgate.py` merges the copies in the extracted netlist first:
+  chains between the same two nets with the same gates, models, bulks and lengths in the same order, widths
+  added. The result line then says how many copies were merged; both netlists are kept in the `lvs` directory.
 - A checker that crashes, times out or leaves no report is a failure, never "0 errors".
 
 ## Astran settings
 
 `set vddnet VDD`, `set gndnet VSS`, template "Taps close to the boundary", hgrid = vgrid = 0.56, rowheight 7,
-supplysize 0.6, nwellpos 1.76, nwellborder 0.6, pnselborder 0.2; `cellgen compact 1 1 50 2 1 1 0 0 0 600`.
+supplysize 0.6, nwellpos 1.76 (first choice, see "Well search"), nwellborder 0.6, pnselborder 0.2; `cellgen compact 1 1 50 2 1 1 0 0 0 600`.
 Gridded poly (the second `1`) matters: with `1 0 ...` HiGHS reached its 600 s limit on nor2 with no feasible point.
 
 The 600 is a budget for the whole solve, not one HiGHS run. HiGHS sometimes stalls without finding any feasible
@@ -101,10 +119,24 @@ twice the time, until the budget is spent. If an attempt found a feasible point 
 the same seed is run again for the rest of the budget. A solve that ends with no feasible point is an error
 ("Could not solve the ILP model"), not an empty cell.
 
+## Well search
+
+Where the n-well edge sits splits the 3.92 um between the N and the P region. At the library's 1.76 um many cells
+are infeasible in under a second: a stack of the GND rail, metal1 tracks, a contact and the N diffusion does not fit
+below the well (found by deleting constraints from oai21's ILP until the conflict was minimal; it is infeasible
+even as an LP). `astran_script_variants` therefore offers one script per height in `NWELLPOS`
+(1.76, 1.92, 2.0, 2.08, 2.16) and the driver takes the first that produces a layout. No single height works for
+all cells (xnor2 only at 1.92, oai33 only from 2.08). The price is area: with less P region the PMOS are folded,
+so these cells are 1.2 to 1.8 times the foundry's.
+
+Still infeasible at every height: dffq, dffnq, dffrnq, icgtp, mux4, addf (mux4 needs four to five stacked metal1
+tracks in the N region; more placement effort did not help).
+
 ## Changed outside `pdks/gf180/`
 
 - `pdks/common.py`: `logical_lines` (SPICE/CDL logical-line reader) moved here from sky130's `netlist.py`, since
   both adapters use it. Neutral; sky130 behaviour unchanged.
 - `tests/`: `conftest.py` fixtures, `test_acceptance.py` also forbids `gf180` and `dualgate` in `Astran/src`,
   `test_gate_length.py` (Astran already draws each gate at its own transistor's length).
-- `Astran/src`: nothing.
+- `astran_pdk.py`, `pdks/README.md`: the optional `astran_script_variants` (scripts tried in order). Neutral.
+- `Astran/src`: nothing for the adapter; `Compaction::solve` restarts a stalled HiGHS (see "Astran settings").

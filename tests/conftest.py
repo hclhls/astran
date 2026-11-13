@@ -207,3 +207,17 @@ def gf180_inv_raw(astran_cli, tmp_path_factory, gf180_pdk):
     r = subprocess.run([str(astran_cli), "cell.run"], cwd=wd, capture_output=True, text=True, timeout=900)
     assert r.returncode == 0, r.stdout
     return gds
+
+
+@pytest.fixture(scope="session")
+def gf180_oai21_raw(astran_cli, tmp_path_factory, gf180_pdk):
+    """oai21 as Astran draws it with the n-well raised to 1.92 um (it is infeasible at the library's 1.76):
+    folded PMOS stack, a tap in the N row's gap, the well edge off the library's."""
+    from pdks.gf180 import adapter
+    wd = tmp_path_factory.mktemp("gf180_oai21_raw")
+    name = adapter.write_astran_netlist("oai21", wd / "astran.sp")
+    gds = wd / "raw.gds"
+    (wd / "cell.run").write_text(adapter.astran_script(name, wd / "astran.sp", gds, 1.92))
+    r = subprocess.run([str(astran_cli), "cell.run"], cwd=wd, capture_output=True, text=True, timeout=900)
+    assert r.returncode == 0, r.stdout
+    return gds

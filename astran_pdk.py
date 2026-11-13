@@ -64,18 +64,32 @@ def generate(adapter, cell: str, cell_dir: Path, astran_cli: Path, row: Row) -> 
         raw, final = cell_dir / "raw.gds", cell_dir / "final.gds"
         astran_cell = adapter.write_astran_netlist(cell, sp)
         adapter.write_lvs_netlist(cell, ref)
-        run.write_text(adapter.astran_script(astran_cell, sp, raw))
+        variants = getattr(adapter, "astran_script_variants", None)
+        scripts = variants(astran_cell, sp, raw) if variants else [adapter.astran_script(astran_cell, sp, raw)]
+        failure = None
         with open(log, "w") as f:
-            try:
-                rc = subprocess.run([str(astran_cli), run.name], cwd=cell_dir, stdout=f,
-                                    stderr=subprocess.STDOUT, timeout=ASTRAN_TIMEOUT,
-                                    stdin=subprocess.DEVNULL).returncode
-            except subprocess.TimeoutExpired:
-                raise AdapterError(f"astran-cli timed out after {ASTRAN_TIMEOUT}s, see {log}")
-        if rc != 0:
-            raise AdapterError(f"astran-cli failed (exit code {rc}), see {log}")
-        if not raw.exists() or raw.stat().st_size == 0:
-            raise AdapterError(f"astran-cli produced no GDS, see {log}")
+            for i, script in enumerate(scripts):
+                if len(scripts) > 1:
+                    f.write(f"\n===== astran-cli attempt {i + 1} of {len(scripts)} =====\n")
+                    f.flush()
+                raw.unlink(missing_ok=True)
+                run.write_text(script)
+                try:
+                    rc = subprocess.run([str(astran_cli), run.name], cwd=cell_dir, stdout=f,
+                                        stderr=subprocess.STDOUT, timeout=ASTRAN_TIMEOUT,
+                                        stdin=subprocess.DEVNULL).returncode
+                except subprocess.TimeoutExpired:
+                    failure = f"astran-cli timed out after {ASTRAN_TIMEOUT}s, see {log}"
+                    continue
+                if rc != 0:
+                    failure = f"astran-cli failed (exit code {rc}), see {log}"
+                elif not raw.exists() or raw.stat().st_size == 0:
+                    failure = f"astran-cli produced no GDS, see {log}"
+                else:
+                    failure = None
+                    break
+        if failure:
+            raise AdapterError(failure + (f" (all {len(scripts)} attempts failed)" if len(scripts) > 1 else ""))
         row.top = adapter.layout_name(cell)
         adapter.postprocess(raw, final, cell)
         row.final = final
