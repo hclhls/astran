@@ -94,6 +94,13 @@ The tapless cells have no tap strips, so there is nothing to untangle between th
 supplysize 0.6, nwellpos 1.76, nwellborder 0.6, pnselborder 0.2; `cellgen compact 1 1 50 2 1 1 0 0 0 600`.
 Gridded poly (the second `1`) matters: with `1 0 ...` HiGHS reached its 600 s limit on nor2 with no feasible point.
 
+The 600 is a budget for the whole solve, not one HiGHS run. HiGHS sometimes stalls without finding any feasible
+point, depending on its random seed (aoi211 with HiGHS 1.14: seed 0 stalls, seeds 1 and 2 solve in about 6 s).
+`Compaction::solve` therefore runs it for 30 s, and if that ends with no solution, retries with the next seed and
+twice the time, until the budget is spent. If an attempt found a feasible point but was still improving at its cap,
+the same seed is run again for the rest of the budget. A solve that ends with no feasible point is an error
+("Could not solve the ILP model"), not an empty cell.
+
 ## Changed outside `pdks/gf180/`
 
 - `pdks/common.py`: `logical_lines` (SPICE/CDL logical-line reader) moved here from sky130's `netlist.py`, since
