@@ -146,3 +146,14 @@ cp {template} "$out"
     e = FakeEnv()
     e.cli, e.out, e.adapter = cli, tmp_path / "out", mod
     return e
+
+
+@pytest.fixture(scope="session")
+def gf180_pdk():
+    """The gf180mcuD PDK directory; skips the test when it is not installed."""
+    from pdks.common import AdapterError
+    from pdks.gf180 import pdk
+    try:
+        return pdk.pdk_dir()
+    except AdapterError as e:
+        pytest.skip(str(e))

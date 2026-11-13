@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
-from pdks.common import AdapterError
+from pdks.common import AdapterError, logical_lines as _logical_lines
 from pdks.sky130 import pdk
 
 PREFIX = "sky130_fd_sc_hd__"
@@ -52,20 +52,6 @@ def layout_name(cell: str) -> str:
 
 def _num(v: str) -> float:
     return float(v.rstrip("uU"))
-
-
-def _logical_lines(text: str):
-    cur = None
-    for raw in text.splitlines():
-        if raw.startswith("+"):
-            if cur is not None:
-                cur += " " + raw[1:].strip()
-            continue
-        if cur is not None:
-            yield cur
-        cur = None if raw.startswith("*") or not raw.strip() else raw.strip()
-    if cur is not None:
-        yield cur
 
 
 def parse_cdl_subckt(text: str, name: str) -> Subckt:

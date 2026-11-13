@@ -101,3 +101,18 @@ def build_abutment(cell_gds: Path, top: str, neighbours: list,
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     out_ly.write(str(out), opt)
     return arr.name
+
+
+def logical_lines(text: str):
+    """SPICE/CDL text -> logical lines: comments dropped, `+` continuations joined."""
+    cur = None
+    for raw in text.splitlines():
+        if raw.startswith("+"):
+            if cur is not None:
+                cur += " " + raw[1:].strip()
+            continue
+        if cur is not None:
+            yield cur
+        cur = None if raw.startswith("*") or not raw.strip() else raw.strip()
+    if cur is not None:
+        yield cur
