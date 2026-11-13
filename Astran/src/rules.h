@@ -33,6 +33,7 @@ enum rule_name {
 enum layer_name {CONT,POLY,NDIF,PDIF,NSEL,PSEL,NWEL,PWEL,VIA1,VIA2,VIA3,VIA4,
 	VIA5,VIA6,VIA7,VIA8,VIA9,MET1,MET2,MET3,MET4,MET5,MET6,MET7,
 	MET8,MET9,MET10,CELLBOX,MET1P,MET2P,MET3P,
+	MET1L,    // label (text) layer of metal 1
 	TECHNAME,
 	MLAYERS,  // # of metal layers
 	SOI,
@@ -40,6 +41,9 @@ enum layer_name {CONT,POLY,NDIF,PDIF,NSEL,PSEL,NWEL,PWEL,VIA1,VIA2,VIA3,VIA4,
 };
 
 enum layerPurpose {L_DRAWING, L_PIN, L_NET, L_OTHER};
+
+// GDSII layer/datatype pair; 'set' is false when the rule file gives none.
+struct GdsLayer { int layer; int datatype; bool set; };
 
 class Rules {
 public:
@@ -72,6 +76,8 @@ public:
 	// Layers' methods
 	string getCIFVal(layer_name name);
 	string getGDSIIVal(layer_name name);
+	GdsLayer getGDSIILayer(layer_name name);
+	GdsLayer getLabelGDSIILayer();   // MET1L if set, else MET1
 	string getTechVal(layer_name name);
 	string getLayerName(int i){return layer_labels_lst[i].name;};
 	string getLayerDesc(layer_name);
@@ -127,6 +133,7 @@ private:
         {"MET1P","Metal 1 Pin","","","",L_PIN},
         {"MET2P","Metal 2 Pin","","","",L_PIN},
         {"MET3P","Metal 3 Pin","","","",L_PIN},
+        {"MET1L","Metal 1 Label","","","",L_OTHER},
         {"TECHNAME","","TECHNAME","","",L_OTHER},
         {"MLAYERS","","3","","",L_OTHER},
         {"SOI","","YES","","",L_OTHER}

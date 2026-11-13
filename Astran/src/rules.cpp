@@ -4,6 +4,24 @@
 ***************************************************************************/
 #include "rules.h"
 
+// Parses "<layer>" or "<layer>/<datatype>", both integers 0-255.
+static bool parseGdsLayer(const string& v, GdsLayer& out) {
+	out.layer = 0; out.datatype = 0; out.set = false;
+	if (v.empty()) return true;
+	size_t slash = v.find('/');
+	string a = v.substr(0, slash);
+	string b = (slash == string::npos) ? string("0") : v.substr(slash + 1);
+	for (const string* t : {&a, &b}) {
+		if (t->empty() || t->size() > 3) return false;
+		for (char c : *t) if (c < '0' || c > '9') return false;
+	}
+	int l = atoi(a.c_str()), d = atoi(b.c_str());
+	if (l > 255 || d > 255) return false;
+	out.layer = l; out.datatype = d; out.set = true;
+	return true;
+}
+
+
 Rules::Rules() {
 	resolution=40;
 
@@ -70,6 +88,9 @@ void Rules::readRules(string filename) {
 				if (line >> parm_tmp){
 					layer_labels_lst[i].valCIF=parm_tmp;
 					if (line >> parm_tmp){
+						GdsLayer chk;
+						if (!parseGdsLayer(parm_tmp, chk))
+							throw AstranError(filename + ":" + to_string(fileline) + ": invalid GDSII value \"" + parm_tmp + "\" (expected <layer> or <layer>/<datatype>, 0-255)");
 						layer_labels_lst[i].valGDSII=parm_tmp;
 						if (line >> parm_tmp)
 							layer_labels_lst[i].valTech=parm_tmp;
@@ -143,7 +164,7 @@ bool Rules::saveGDSIILayerTable(string filename) {
 	
 	for(int i=0; i<TECHNAME; i++)
 		if(layer_labels_lst[i].valGDSII!="" && layer_labels_lst[i].valTech!="")
-			lTabfile << layer_labels_lst[i].valTech << "\t\t" << getLayerPurposeText(layer_labels_lst[i].purpose) << "\t\t" << layer_labels_lst[i].valGDSII << "\t\t0" << endl;
+			lTabfile << layer_labels_lst[i].valTech << "\t\t" << getLayerPurposeText(layer_labels_lst[i].purpose) << "\t\t" << getGDSIILayer((layer_name)i).layer << "\t\t" << getGDSIILayer((layer_name)i).datatype << endl;
 	lTabfile.close();
 	return true;
 }
@@ -214,6 +235,17 @@ string Rules::getCIFVal(layer_name name) {
 	return(layer_labels_lst[name].valCIF);
 }
 
+GdsLayer Rules::getGDSIILayer(layer_name name) {
+	GdsLayer g;
+	parseGdsLayer(layer_labels_lst[name].valGDSII, g);	// values are validated when set
+	return g;
+}
+
+GdsLayer Rules::getLabelGDSIILayer() {
+	GdsLayer g = getGDSIILayer(MET1L);
+	return g.set ? g : getGDSIILayer(MET1);
+}
+
 string Rules::getGDSIIVal(layer_name name) {
 	return(layer_labels_lst[name].valGDSII);
 }
@@ -252,6 +284,9 @@ void Rules::setCIFVal(layer_name name, string val) {
 }
 
 void Rules::setGDSIIVal(layer_name name, string val) {
+	GdsLayer chk;
+	if (!parseGdsLayer(val, chk))
+		throw AstranError("invalid GDSII value \"" + val + "\" (expected <layer> or <layer>/<datatype>, 0-255)");
 	layer_labels_lst[name].valGDSII=val;
 }
 
