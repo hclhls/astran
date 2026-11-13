@@ -34,9 +34,12 @@ def test_missing_pdk_exits_2_with_fetch_hint(monkeypatch, tmp_path, capsys, astr
 # Review Focus 1
 @pytest.mark.slow
 def test_abutment_catches_violation_that_only_exists_when_abutted(gf180_pdk, tmp_path):
-    # metal1 bars 0.10 um from each side of the cell edge: legal alone, 0.20 < 0.23 apart at every interface
-    cell = make_gds(tmp_path, {(34, 0): [(0.10, 0.0, 0.33, 1.0), (0.67, 0.0, 0.90, 1.0)]},
-                    cellbox=(0, 0, 1.0, 1.0), cellbox_pair=(0, 0), name="X_1", filename="cell.gds")
+    # metal1 bars 0.10 um from each side of the cell edge: legal alone, 0.20 < 0.23 apart at every interface.
+    # y 1.43-1.69 is the band between the tap cell's two rails (so the bars never meet its metal), 0.6 um wide
+    # for the minimum area; the wells are drawn so the neighbouring tap cells' wells join up.
+    cell = make_gds(tmp_path, {(34, 0): [(0.10, 1.43, 0.70, 1.69), (1.30, 1.43, 1.90, 1.69)],
+                               (21, 0): [(-0.43, 1.76, 2.43, 4.35)], (204, 0): [(-0.43, -0.43, 2.43, 1.76)]},
+                    cellbox=(0, 0, 2.0, 3.92), cellbox_pair=(0, 0), name="X_1", filename="cell.gds")
     alone = adapter.drc(cell, "X_1", tmp_path / "alone")
     assert all(r.ok for _, r in alone), [(n, r.detail) for n, r in alone]
     name = build_abutment(cell, "X_1", [], adapter.BOUNDARY_LAYER, tmp_path / "arr.gds")
