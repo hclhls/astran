@@ -4,6 +4,7 @@
  \date 25-sep-2006 \author Cristiano Lazzari <clazz@inf.ufrgs.br> 
  */
 #include <regex>
+#include <chrono>
 #include "compaction.h"
 using namespace std;
 
@@ -412,6 +413,54 @@ void Compaction::insertLPMinVar( string v, int i ) {
  */
 
 /** Solve Compaction constraints with linear programming. */
+/** Time cap in seconds of the first HiGHS attempt; every restart doubles it. */
+static const int SOLVE_FIRST_ATTEMPT_CAP = 30;
+
+/** Read the values a solver wrote into \a variables. Returns how many were read: 0 means the solver left no
+ solution (HiGHS writes "None" when it stopped without a feasible point, and the variables must then stay untouched).
+ \a hitTimeLimit tells whether HiGHS stopped because of its time limit. */
+static int readSolution(const string &fileName, map<string,int> &variables, bool highs, bool &hitTimeLimit) {
+    hitTimeLimit = false;
+    ifstream f(fileName.c_str());
+    if(!f)
+        throw AstranError("Problem opening: " + fileName);
+    
+    string line;
+    int nRead = 0;
+    while (getline(f, line)) {
+        if(line=="Model status"){
+            getline(f, line);
+            hitTimeLimit = (line=="Time limit reached");
+            continue;
+        }
+        if(!line.empty() && line[0]=='#'){
+            //HiGHS also writes "# Dual solution values" and "# Basis" sections (pure LPs), with the same
+            //column names: stop at the end of the primal values so they don't overwrite them.
+            if(line.find("Dual solution")!=string::npos || line.find("Basis")!=string::npos)
+                break;
+            if(highs && line.find("Primal solution")!=string::npos){
+                getline(f, line);
+                if(line!="Feasible")
+                    return 0;
+            }
+            continue;
+        }
+        
+        istringstream s(line);
+        string n;
+        double tmp;
+        if(!(s >> n >> tmp))
+            continue;
+        
+        map<string,int>::iterator i = variables.find( n );
+        if ( i != variables.end() ) {
+            i->second = round(tmp);
+            nRead++;
+        }
+    }
+    return nRead;
+}
+
 int Compaction::solve(string lpSolverFile, int timeLimit) {
 	cout << "-> Calling LP Solver (" 
 	<< variables.size() << " variables, " 
@@ -548,98 +597,125 @@ int Compaction::solve(string lpSolverFile, int timeLimit) {
 
     string solFileName = lp_filename + ".sol";
     
-    remove(solFileName.c_str()); //never read a solution left by an earlier run
-
     regex str_expr_scip ("(.*)scip");
     regex str_expr_highs ("(.*)highs");
-	string cmd;
-	if (regex_match(lpSolverFile,str_expr_highs))
-	{
-		cmd = "\"" + lpSolverFile + "\" --time_limit " + to_string(timeLimit) + "  --solution_file " + solFileName + " " + lp_filename + ".lp";
-	}
-	else if (regex_match(lpSolverFile,str_expr_scip))
-	{
-		cmd = "\"" + lpSolverFile +  "\"  -l " + solFileName + " -f " + lp_filename + ".lp";
-	}
-	else {
-		cmd = "\"" + lpSolverFile + "\" TimeLimit=" + to_string(timeLimit) + " ResultFile=" + solFileName + " " + lp_filename + ".lp";
-	}
-	
-	cout << "-> Running command: " << cmd << endl;
-	
-	FILE *x = _popen(cmd.c_str(), "r");
-	
-	if(x==NULL)
-		throw AstranError("Problem executing: " + cmd);
+    bool isHighs = regex_match(lpSolverFile,str_expr_highs);
+    bool isScip = !isHighs && regex_match(lpSolverFile,str_expr_scip);
     
-    cout << "-> To interrupt earlier and get the current best solution, type in a terminal: kill -2 [gurobi process]" << endl;
-    cout << "-> * and H means new feasible solution found:";
-    cerr << " ";
+    struct Attempt { bool infeasible; int nRead; bool hitTimeLimit; };
     
-	char line[150];
-	
-	bool infeasible=false;
-	while (fgets(line, 150, x)) {
-		istringstream s(line);
-		string n;		
-		s >> n;
-        if(n!="Warning:")
-            printf("%s",line);
-
-        if(n=="H" || n=="*")
-			cerr << n;
+    // One run of the solver. Leaves the values it found, if any, in the variables.
+    auto attempt = [&](int limit, int seed) -> Attempt {
+        remove(solFileName.c_str()); //never read a solution left by an earlier run
         
-        //"infeasible" (not "infeasibility"/"infeasibilities", which also appear in feasible solves' logs)
-        string lowerLine(line);
-        transform(lowerLine.begin(), lowerLine.end(), lowerLine.begin(), ::tolower);
-        if(lowerLine.find("infeasible")!=string::npos) infeasible=true;
+        string cmd;
+        if (isHighs)
+            cmd = "\"" + lpSolverFile + "\" --time_limit " + to_string(limit) + " --random_seed " + to_string(seed) + "  --solution_file " + solFileName + " " + lp_filename + ".lp";
+        else if (isScip)
+            cmd = "\"" + lpSolverFile +  "\"  -l " + solFileName + " -f " + lp_filename + ".lp";
+        else
+            cmd = "\"" + lpSolverFile + "\" TimeLimit=" + to_string(limit) + " ResultFile=" + solFileName + " " + lp_filename + ".lp";
         
-		if(n=="ERROR" || n=="Time" || n=="Unable" || n=="Wrote" || n=="Optimal" || n=="Model")
-			cout << endl << line;
-        //if(n=="Unable" || n=="Model")
-        //    return 0;
-    }
-    
-    _pclose(x);
-    
-    if(infeasible){
-        cout << "-> The solver reported that the model is infeasible" << endl;
-        return 0;
-    }
-    
-    FILE* stream = fopen(solFileName.c_str(), "r");
-    
-	if(stream==NULL)
-		throw AstranError("Problem opening: " + solFileName);
-    
-	while (fgets(line, 150, stream)) {
-		
-		istringstream s(line);
-		
-		string n;
-        double tmp;
-		int v;
-		
-		s >> n;
-        if(n=="#"){
-            //HiGHS also writes "# Dual solution values" and "# Basis" sections (pure LPs), with the same
-            //column names: stop at the end of the primal values so they don't overwrite them.
-            string section(line);
-            if(section.find("Dual solution")!=string::npos || section.find("Basis")!=string::npos) break;
-            continue;
+        cout << "-> Running command: " << cmd << endl;
+        
+        FILE *x = _popen(cmd.c_str(), "r");
+        
+        if(x==NULL)
+            throw AstranError("Problem executing: " + cmd);
+        
+        cout << "-> To interrupt earlier and get the current best solution, type in a terminal: kill -2 [gurobi process]" << endl;
+        cout << "-> * and H means new feasible solution found:";
+        cerr << " ";
+        
+        char line[150];
+        
+        bool infeasible=false;
+        while (fgets(line, 150, x)) {
+            istringstream s(line);
+            string n;		
+            s >> n;
+            if(n!="Warning:")
+                printf("%s",line);
+            
+            if(n=="H" || n=="*")
+                cerr << n;
+            
+            //"infeasible" (not "infeasibility"/"infeasibilities", which also appear in feasible solves' logs)
+            string lowerLine(line);
+            transform(lowerLine.begin(), lowerLine.end(), lowerLine.begin(), ::tolower);
+            if(lowerLine.find("infeasible")!=string::npos) infeasible=true;
+            
+            if(n=="ERROR" || n=="Time" || n=="Unable" || n=="Wrote" || n=="Optimal" || n=="Model")
+                cout << endl << line;
         }
         
-		s >> tmp;
-		v = round(tmp);
-		
-		map<string,int>::iterator i = variables.find( n );
-		if ( i != variables.end() ) {
-			i->second = v;
-		}
-	}
-    fclose(stream);
+        _pclose(x);
+        
+        Attempt a = {infeasible, 0, false};
+        if(!infeasible)
+            a.nRead = readSolution(solFileName, variables, isHighs, a.hitTimeLimit);
+        return a;
+    };
     
-    return 1;
+    auto start = chrono::steady_clock::now();
+    auto remainingTime = [&]() -> int {
+        return timeLimit - (int) chrono::duration_cast<chrono::seconds>(chrono::steady_clock::now() - start).count();
+    };
+    
+    // HiGHS can stall without ever finding a feasible point, and whether it does depends on its random seed:
+    // the same model that stalls with one seed is solved in a few seconds with another. So the first attempt
+    // is capped, and an attempt that ends at its cap with no solution is repeated with the next seed and a
+    // cap twice as long. The last attempt, the one that no longer fits twice, takes whatever time is left.
+    int cap = SOLVE_FIRST_ATTEMPT_CAP;
+    int seed = 0;
+    
+    while(true){
+        int remaining = remainingTime();
+        if(remaining < 1){
+            cout << endl << "-> No feasible solution was found within the time limit of " << timeLimit << " s" << endl;
+            return 0;
+        }
+        bool capped = isHighs && remaining > 2 * cap;
+        
+        Attempt a = attempt(capped ? cap : remaining, seed);
+        
+        if(a.infeasible){
+            cout << "-> The solver reported that the model is infeasible" << endl;
+            return 0;
+        }
+        
+        if(a.nRead > 0){
+            if(!(capped && a.hitTimeLimit))
+                return 1;
+            
+            // A feasible point at the cap, but the solver was still improving it. A stopped HiGHS cannot be
+            // resumed, so run the same seed again for the rest of the time and keep this solution in case
+            // that run ends without one.
+            cout << endl << "-> Feasible solution found with seed " << seed << ", running it again for the remaining time" << endl;
+            string probeFileName = solFileName + ".probe";
+            rename(solFileName.c_str(), probeFileName.c_str());
+            
+            remaining = remainingTime();
+            if(remaining >= 1 && attempt(remaining, seed).nRead > 0)
+                return 1;
+            
+            bool ignored;
+            readSolution(probeFileName, variables, isHighs, ignored);
+            return 1;
+        }
+        
+        // No solution: a HiGHS that stalled at its cap is retried with another seed, anything else is a failure
+        // (an attempt that was already given all the remaining time leaves nothing to retry with).
+        if(!(capped && a.hitTimeLimit)){
+            cout << endl << (isHighs && a.hitTimeLimit ? "-> No feasible solution was found within the time limit"
+                                                       : "-> The solver stopped without finding a solution") << endl;
+            return 0;
+        }
+        cout << endl << "-> No feasible solution after " << (capped ? cap : remaining) << " s with seed " << seed
+             << ", trying seed " << seed + 1 << endl;
+        seed++;
+        cap *= 2;
+    }
 }
 
 
