@@ -23,12 +23,20 @@ def test_driver_runs_gf180_inv_and_prints_a_table_row(astran_cli, gf180_pdk, tmp
 
 # Review Focus 2
 def test_missing_pdk_exits_2_with_fetch_hint(monkeypatch, tmp_path, capsys, astran_cli):
-    monkeypatch.setenv("ASTRAN_GF180_DIR", str(tmp_path / "nowhere"))
+    monkeypatch.delenv("ASTRAN_GF180_DIR", raising=False)
     monkeypatch.setenv("PDK_ROOT", str(tmp_path / "root"))
     rc = astran_pdk.main(["gf180", "--out", str(tmp_path), "--astran", str(astran_cli)])
     assert rc == 2
     err = capsys.readouterr().err
     assert "ciel enable --pdk-family gf180mcu" in err and "Traceback" not in err
+
+
+def test_bad_pdk_directory_variable_exits_2_naming_it(monkeypatch, tmp_path, capsys, astran_cli):
+    monkeypatch.setenv("ASTRAN_GF180_DIR", str(tmp_path / "typo"))
+    rc = astran_pdk.main(["gf180", "--out", str(tmp_path), "--astran", str(astran_cli)])
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "ASTRAN_GF180_DIR" in err and "Traceback" not in err
 
 
 # Review Focus 1
