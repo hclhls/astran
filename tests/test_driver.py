@@ -105,3 +105,23 @@ def test_notes_printed(fake_env, capsys):
 def test_driver_has_no_pdk_knowledge(repo_root):
     src = (repo_root / "astran_pdk.py").read_text().lower()
     assert all(w not in src for w in ["sky130", "li1", "magic", "netgen", "235"])
+
+
+def test_script_variants_are_tried_until_one_works(fake_env, capsys, monkeypatch):
+    # the fake astran-cli fails on a script that mentions "nogds"; the third variant is the first that works
+    a = fake_env.adapter
+    monkeypatch.setattr(a, "astran_script_variants", lambda c, n, g: [
+        f"nogds\nout {g}\n", f"nogds again\nout {g}\n", a.astran_script(c, n, g)], raising=False)
+    assert main(args(fake_env, "good")) == 0
+    assert row(capsys.readouterr().out, "good").split()[1:5] == ["ok", "pass", "pass", "pass"]
+    log = (fake_env.out / "good" / "astran.log").read_text()
+    assert "attempt 3 of 3" in log and "attempt 4" not in log
+
+
+def test_all_script_variants_failing_is_a_gen_failure(fake_env, capsys, monkeypatch):
+    a = fake_env.adapter
+    monkeypatch.setattr(a, "astran_script_variants",
+                        lambda c, n, g: [f"nogds {i}\nout {g}\n" for i in range(2)], raising=False)
+    assert main(args(fake_env, "good")) == 1
+    out = capsys.readouterr().out
+    assert row(out, "good").split()[1] == "FAIL" and "all 2 attempts failed" in out

@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from pdks.common import CheckResult, run_tool
-from pdks.gf180 import pdk
+from pdks.gf180 import pdk, splitgate
 
 # klayout runs the gf180 deck the way the PDK's run_drc.py builds it: main.drc is only a header and runs no
 # rules, so the deck is main.drc + every rule table + tail.drc, with layers_def.drc beside it. Variant C is the PDK
@@ -132,7 +132,7 @@ def netgen_lvs(gds: Path, top: str, ref: Path, workdir: Path) -> CheckResult:
     workdir = Path(workdir).resolve()
     workdir.mkdir(parents=True, exist_ok=True)
     report, spice = workdir / "lvs.rpt", workdir / "layout.spice"
-    for f in (report, spice):
+    for f in (report, spice, workdir / "layout_reduced.spice"):
         f.unlink(missing_ok=True)
     script = f"""gds read {Path(gds).resolve()}
 if {{[lsearch [cellname list allcells] {top}] < 0}} {{ puts "ASTRAN_NOCELL"; quit -noprompt }}
@@ -146,6 +146,11 @@ quit -noprompt
     rc = _run_magic(script, workdir, workdir / "extract.log", "extract")
     if rc != 0 or not spice.exists() or spice.stat().st_size == 0:
         return _fail("magic extraction", f"exit code {rc}, no netlist for cell {top}, see {workdir / 'extract.log'}", report)
+    reduced, merged = splitgate.reduce_split_gates(spice.read_text(errors="replace"))
+    if merged:                                   # folded series stacks: compare the reduced netlist, keep both
+        spice = workdir / "layout_reduced.spice"
+        spice.write_text(reduced)
+    note = f" ({merged} folded stack copies merged, see pdks/gf180/splitgate.py)" if merged else ""
     rc = run_tool(["netgen", "-batch", "lvs", f"{spice} {top}", f"{Path(ref).resolve()} {top}",
                    pdk.pdk_dir() / "libs.tech/netgen/gf180mcuD_setup.tcl", report],
                   workdir, workdir / "netgen.log")
@@ -155,6 +160,6 @@ quit -noprompt
     if "property error" in text.lower():
         return CheckResult(False, 1, report, "netgen: property errors")
     if "Circuits match uniquely." in text:
-        return CheckResult(True, 0, report, "netgen: circuits match")
+        return CheckResult(True, 0, report, "netgen: circuits match" + note)
     final = re.search(r"Final result:\s*(.*)", text)
     return CheckResult(False, 1, report, "netgen: " + (final.group(1).strip() if final else "no match reported"))
