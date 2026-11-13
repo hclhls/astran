@@ -129,6 +129,29 @@ even as an LP). `astran_script_variants` therefore offers one script per height 
 all cells (xnor2 only at 1.92, oai33 only from 2.08). The price is area: with less P region the PMOS are folded,
 so these cells are 1.2 to 1.8 times the foundry's.
 
+Result for the cells that need a raised well (run together with the four default cells, so every cell is in every
+other's abutment array):
+
+```
+cell    gen  drc   drc-abut  lvs   w×h           ref w×h       area    ref area  ratio
+oai21   ok   pass  pass      pass  7.840×3.920   4.480×3.920   30.733  17.562    1.75
+oai22   ok   pass  pass      pass  10.080×3.920  5.600×3.920   39.514  21.952    1.80
+oai211  ok   pass  pass      pass  8.400×3.920   5.600×3.920   32.928  21.952    1.50
+oai221  ok   pass  pass      pass  10.640×3.920  6.720×3.920   41.709  26.342    1.58
+oai222  ok   pass  pass      pass  13.440×3.920  8.400×3.920   52.685  32.928    1.60
+oai31   ok   pass  pass      pass  9.520×3.920   6.160×3.920   37.318  24.147    1.55
+oai32   ok   pass  pass      pass  11.200×3.920  6.720×3.920   43.904  26.342    1.67
+oai33   ok   pass  pass      pass  13.440×3.920  8.400×3.920   52.685  32.928    1.60
+xnor2   ok   pass  pass      pass  10.640×3.920  7.280×3.920   41.709  28.538    1.46
+xnor3   ok   pass  pass      pass  16.800×3.920  13.440×3.920  65.856  52.685    1.25
+xor3    ok   pass  pass      pass  16.240×3.920  12.880×3.920  63.661  50.490    1.26
+bufz    ok   pass  pass      pass  11.200×3.920  7.840×3.920   43.904  30.733    1.43
+invz    ok   pass  pass      pass  11.200×3.920  9.520×3.920   43.904  37.318    1.18
+addh    ok   pass  pass      pass  13.440×3.920  10.080×3.920  52.685  39.514    1.33
+latq    ok   pass  pass      pass  16.800×3.920  11.200×3.920  65.856  43.904    1.50
+```
+
+
 Still infeasible at every height: dffq, dffnq, dffrnq, icgtp, mux4, addf (mux4 needs four to five stacked metal1
 tracks in the N region; more placement effort did not help).
 
