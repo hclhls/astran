@@ -19,7 +19,10 @@
           base = librelane.devShells.${system}.default;
         in {
           default = pkgs.mkShell {
-            packages = base.config.devshell.packages ++ [ pkgs.highs pkgs.gnumake pkgs.gcc ];
+            packages = base.config.devshell.packages ++ [ pkgs.highs pkgs.gnumake pkgs.gcc
+              # run pytest with librelane's python so klayout.db is importable
+              (pkgs.writeShellScriptBin "pytest" ''exec python3 -m pytest "$@"'')
+            ];
             shellHook = ''
               export PYTHONPATH=${pytestEnv}/${pytestEnv.sitePackages}''${PYTHONPATH:+:$PYTHONPATH}
             '';

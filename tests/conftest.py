@@ -34,3 +34,32 @@ def run_astran(astran_cli):
         return subprocess.run([str(astran_cli), "script.run"], cwd=cwd,
                               capture_output=True, text=True, timeout=900)
     return run
+
+
+FLOW = '''set lpsolve "highs"
+load technology "{rul}"
+load netlist "{work}/lib65.sp"
+cellgen select INV0
+cellgen fold 2 0
+cellgen place 150 3 3 4 1 4 2
+cellgen route 1 0 1 1
+cellgen compact 1 0 50 2 1 1 0 0 0 600
+{exports}
+'''
+
+
+@pytest.fixture
+def legacy_flow(run_astran, repo_root):
+    """Runs the 0.065 generator flow with the given rule file; returns the workdir result."""
+    def go(rul: Path, cwd: Path, exports=("export layout INV0 INV0.gds",)):
+        script = FLOW.format(rul=rul, work=repo_root / "Astran/build/Work", exports="\n".join(exports))
+        r = run_astran(script, cwd)
+        assert r.returncode == 0, r.stdout
+        return r
+    return go
+
+
+@pytest.fixture
+def generated_mini_gds(legacy_flow, workdir, repo_root) -> Path:
+    legacy_flow(repo_root / "tests/data/mini.rul", workdir)
+    return workdir / "INV0.gds"

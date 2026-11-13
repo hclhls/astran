@@ -269,95 +269,38 @@ void Gds::generateString(const char* a) {
 }
 
 
-void Gds::add_Layer(short int& layer){
-    f.push_back(0x00);
-    f.push_back(0x06);
-    f.push_back(0x0D);
-    f.push_back(0x02);
-    f.push_back(0x00);
-    f.push_back(layer);
+void Gds::add_int16(int v){
+    f.push_back((v >> 8) & 0xFF);
+    f.push_back(v & 0xFF);
 }
 
+void Gds::add_int32(long v){
+    f.push_back((v >> 24) & 0xFF);
+    f.push_back((v >> 16) & 0xFF);
+    f.push_back((v >> 8) & 0xFF);
+    f.push_back(v & 0xFF);
+}
 
-void Gds::add_Boxtype(short int& boxtype){
-    f.push_back(0x00);
-    f.push_back(0x06);
-    f.push_back(0x0D);
-    f.push_back(0x02);
-    f.push_back(0x00);
-    f.push_back(boxtype);
-    
+void Gds::generateBoundary(int layer, int datatype, long x1, long y1, long x2, long y2){
+    add_int16(4);  add_int16(0x0800);                    // BOUNDARY
+    add_int16(6);  add_int16(0x0D02); add_int16(layer);  // LAYER
+    add_int16(6);  add_int16(0x0E02); add_int16(datatype); // DATATYPE
+    add_int16(44); add_int16(0x1003);                    // XY, 5 points (closed)
+    add_int32(x1); add_int32(y1);
+    add_int32(x2); add_int32(y1);
+    add_int32(x2); add_int32(y2);
+    add_int32(x1); add_int32(y2);
+    add_int32(x1); add_int32(y1);
     write();
 }
 
-
-
-void Gds::add_XY(long int& x1, long int& y1, long int& x2, long int& y2){
-    add_longint(x1);
-    add_longint(y1);
-    add_longint(x2);
-    add_longint(y1);
-    add_longint(x2);
-    add_longint(y2);
-    add_longint(x1);
-    add_longint(y2);
-    add_longint(x1);
-    add_longint(y1);
-}
-
-
-void Gds::generateBox(short int layer, long int x1, long int y1, long int x2, long int y2){
-    f.push_back(0x00);
-    f.push_back(0x04);
-    f.push_back(0x2D);
-    f.push_back(0x00);
-    add_Layer(layer);
-    
-    f.push_back(0x00);
-    f.push_back(0x2C);
-    f.push_back(0x10);
-    f.push_back(0x03);
-    add_XY(x1, y1, x2, y2);
-    
-    write();
-}
-
-void Gds::generateLabel(short int layer, long int x, long int y, const char* text){
-    f.push_back(0x00);
-    f.push_back(0x04);
-    f.push_back(0x0C);
-    f.push_back(0x00);
-    
-    add_Layer(layer);
-    
-    f.push_back(0x00);
-    f.push_back(0x06);
-    f.push_back(0x16);
-    f.push_back(0x02);
-    f.push_back(0x00);
-    f.push_back(0x00);
-    
-    f.push_back(0x00);
-    f.push_back(0x0C);
-    f.push_back(0x1B);
-    f.push_back(0x05);
-    f.push_back(0x3f);
-    f.push_back(0xf0);
-    f.push_back(0x00);
-    f.push_back(0x00);
-    f.push_back(0x00);
-    f.push_back(0x00);
-    f.push_back(0x00);
-    f.push_back(0x00);
-    
-    f.push_back(0x00);
-    f.push_back(0x0C);
-    f.push_back(0x10);
-    f.push_back(0x03);
-    add_longint(x);
-    add_longint(y);
-    
-    generateString(text);
+void Gds::generateText(int layer, int texttype, long x, long y, const char* text){
+    add_int16(4);  add_int16(0x0C00);                    // TEXT
+    add_int16(6);  add_int16(0x0D02); add_int16(layer);  // LAYER
+    add_int16(6);  add_int16(0x1602); add_int16(texttype); // TEXTTYPE
+    add_int16(12); add_int16(0x1003);                    // XY
+    add_int32(x); add_int32(y);
+    generateString(text);                                // STRING
     write();
 }
 

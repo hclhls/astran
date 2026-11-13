@@ -27,15 +27,16 @@ public:
     void generateStruct();
     void generateStructname(char*);
     void generateString(const char* a);
-    void add_Layer(short int &);
-    void add_Boxtype(short int &);
-    void add_XY(long int&, long int&, long int&, long int&);
-    void generateBox(short int,long int, long int, long int, long int);
-    void generateLabel(short int layer, long int x, long int y, const char* text);
+    // Rectangle as a closed BOUNDARY element on layer/datatype (database units).
+    void generateBoundary(int layer, int datatype, long x1, long y1, long x2, long y2);
+    // TEXT element on layer/texttype at (x, y) (database units).
+    void generateText(int layer, int texttype, long x, long y, const char* text);
     void generateEndelement();
     void generateEndStruct();
     void generateEndLibrary();
     void add_longint(long int&);
+    void add_int16(int v);
+    void add_int32(long v);
 
 private:
     union conv_2b{

@@ -345,30 +345,37 @@ bool DesignMng::readCommand(string cmd){
                             g.generateUnits();
                             g.generateStruct();
                             g.generateStructname(tmp);
-                            //Insert Boxes
+                            // Database unit is 1 nm; an internal unit is 1/getScale() um.
+                            if (1000 % rules->getScale() != 0)
+                                throw AstranError("Resolution MINSTEP=" + to_string(1.0/rules->getScale()) + " um cannot be represented in nm for GDSII export");
+                            const long nmPerUnit = 1000 / rules->getScale();
                             list <Box>::iterator layer_it;
                             map <layer_name , list<Box> >::iterator layers_it; // iterador das camadas		
                             for (layers_it = circuit->getLayout(words[2])->layers.begin(); layers_it != circuit->getLayout(words[2])->layers.end(); layers_it++) {
                                 if ( !layers_it->second.empty() ) {
-                                    int layer = strToInt(rules->getGDSIIVal(layers_it->first));
+                                    GdsLayer gl = rules->getGDSIILayer(layers_it->first);
+                                    if (!gl.set) {
+                                        cout << "-> WARNING: no GDSII layer for " << rules->getLayerName(layers_it->first) << ", skipping its shapes" << endl;
+                                        continue;
+                                    }
                                     for ( layer_it = layers_it->second.begin(); layer_it != layers_it->second.end(); layer_it++ ){
-                                        long int x1 = 2*layer_it->getX1();
-                                        long int y1 = 2*layer_it->getY1();
-                                        long int x2 = 2*layer_it->getX2();
-                                        long int y2 = 2*layer_it->getY2();
-                                        if(x2-x1!=0 & y2-y1!=0){
-                                            g.generateBox(layer, x1, y1, x2, y2);
-//                                            cout << layer << "-"<< x1 << "-" << y1 << "-" << x2 << "-" << y2 << endl;
+                                        long x1 = nmPerUnit*layer_it->getX1();
+                                        long y1 = nmPerUnit*layer_it->getY1();
+                                        long x2 = nmPerUnit*layer_it->getX2();
+                                        long y2 = nmPerUnit*layer_it->getY2();
+                                        if(x2-x1!=0 && y2-y1!=0){
+                                            g.generateBoundary(gl.layer, gl.datatype, x1, y1, x2, y2);
                                             g.generateEndelement();
                                         }
                                     }
                                 }
                             }
                             
+                            GdsLayer labelLayer = rules->getLabelGDSIILayer();
                             list<Label>::iterator labels_it;
                             for (labels_it = circuit->getLayout(words[2])->labels.begin(); labels_it != circuit->getLayout(words[2])->labels.end(); labels_it++){
-                                strcpy(tmp, labels_it->text.c_str());
-                                g.generateLabel(strToInt(rules->getGDSIIVal(MET1)), 2*labels_it->pt.getX(), 2*labels_it->pt.getY(), tmp);
+                                if (!labelLayer.set) break;
+                                g.generateText(labelLayer.layer, labelLayer.datatype, nmPerUnit*labels_it->pt.getX(), nmPerUnit*labels_it->pt.getY(), labels_it->text.c_str());
                                 g.generateEndelement();
                             }
                             
