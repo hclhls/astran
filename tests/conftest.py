@@ -157,3 +157,41 @@ def gf180_pdk():
         return pdk.pdk_dir()
     except AdapterError as e:
         pytest.skip(str(e))
+
+
+class RefCell:
+    """A foundry gf180 7t cell extracted into separate files."""
+    pass
+
+
+@pytest.fixture(scope="session")
+def ref_inv(tmp_path_factory, gf180_pdk) -> RefCell:
+    import re
+    import klayout.db as kdb
+    root = gf180_pdk / "libs.ref/gf180mcu_fd_sc_mcu7t5v0"
+    wd = tmp_path_factory.mktemp("gf180_ref_inv")
+    ly = kdb.Layout()
+    ly.read(str(root / "gds/gf180mcu_fd_sc_mcu7t5v0.gds"))
+    inv = ly.cell("gf180mcu_fd_sc_mcu7t5v0__inv_1")
+    opt = kdb.SaveLayoutOptions()
+    opt.select_all_cells = False
+    opt.add_cell(inv.cell_index())
+    ly.write(str(wd / "inv.gds"), opt)
+    # the library's cells are tapless (tap cells come separately); a lone one trips klayout's
+    # DF.13_MV/DF.14_MV (tap distance). The DRC reference is the inverter next to a filltie cell.
+    tie = ly.cell("gf180mcu_fd_sc_mcu7t5v0__filltie")
+    top = ly.create_cell("inv_tie")
+    tie_w = kdb.Region(tie.begin_shapes_rec(ly.layer(0, 0))).bbox().width()    # prBoundary, not the bbox
+    top.insert(kdb.CellInstArray(tie.cell_index(), kdb.Trans(0, 0)))
+    top.insert(kdb.CellInstArray(inv.cell_index(), kdb.Trans(tie_w, 0)))
+    opt2 = kdb.SaveLayoutOptions()
+    opt2.select_all_cells = False
+    opt2.add_cell(top.cell_index())
+    ly.write(str(wd / "inv_tie.gds"), opt2)
+    text = (root / "spice/gf180mcu_fd_sc_mcu7t5v0.spice").read_text()
+    m = re.search(r"^\.SUBCKT gf180mcu_fd_sc_mcu7t5v0__inv_1 .*?^\.ENDS\n", text, re.S | re.M)
+    (wd / "inv.spice").write_text(m.group(0))
+    r = RefCell()
+    r.gds, r.spice, r.top = wd / "inv.gds", wd / "inv.spice", "gf180mcu_fd_sc_mcu7t5v0__inv_1"
+    r.drc_gds, r.drc_top = wd / "inv_tie.gds", "inv_tie"
+    return r

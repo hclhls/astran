@@ -15,7 +15,7 @@
           pkgs = nixpkgs.legacyPackages.${system};
           # librelane's shell already provides python3 with klayout.db, magic,
           # netgen and klayout; add only what it lacks.
-          pytestEnv = pkgs.python3.withPackages (ps: [ ps.pytest ]);
+          pytestEnv = pkgs.python3.withPackages (ps: [ ps.pytest ps.docopt ]);
           base = librelane.devShells.${system}.default;
         in {
           default = pkgs.mkShell {
