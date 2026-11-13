@@ -6,8 +6,9 @@
 `gf180mcu_fd_sc_mcu7t5v0` (gf180mcuD, 5 V library with 6 V devices `nfet_06v0` / `pfet_06v0`,
 N gate 0.6 um, P gate 0.5 um, 3.92 um tall).
 
-The PDK is looked up in `$ASTRAN_GF180_DIR`, then `${PDK_ROOT:-~/.ciel}/gf180mcuD`, then the ciel version
-pinned in `pdks/gf180/pdk.py`. To fetch it: `ciel enable --pdk-family gf180mcu 0fe599b2afb6708d281543108caf8310912f54af`.
+The PDK is `$ASTRAN_GF180_DIR` if that is set (and it is an error if it is not a directory: it is never replaced by
+another PDK), otherwise the ciel version pinned in `pdks/gf180/pdk.py` under `${PDK_ROOT:-~/.ciel}`, then
+`${PDK_ROOT:-~/.ciel}/gf180mcuD`. To fetch it: `ciel enable --pdk-family gf180mcu 0fe599b2afb6708d281543108caf8310912f54af`.
 
 ## Result of the default run
 
@@ -68,9 +69,9 @@ violated PP.3cii / NP.3cii against the neighbouring tap cell).
 
 ## Post-processing (derived layers only)
 
-`postprocess.py` never moves or resizes poly, diffusion, contacts, metal or the wells. It resolves the overlap of
-the n and p implants on the tap strips Astran draws (a tap in the nwell is n+ only, one outside it p+ only), draws
-dualgate and V5_Xtor, and labels the wells.
+`postprocess.py` never moves or resizes poly, diffusion, contacts, metal or the wells. It draws dualgate and
+V5_Xtor and labels the wells (VNW and VPW, inside the cell box near its left edge, as the foundry does).
+The tapless cells have no tap strips, so there is nothing to untangle between the n and p implants.
 
 ## Checks
 

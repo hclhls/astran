@@ -81,3 +81,5 @@ def test_wells_are_labelled_like_the_foundry_cells(gf180_inv_raw, tmp_path):
         pts = [s.text.position() for s in b.top_cell().shapes(b.layer(*layer)).each() if s.is_text() and s.text.string == text]
         assert len(pts) == 1, text
         assert not (region(b, well) & kdb.Region(kdb.Box(pts[0].x - 1, pts[0].y - 1, pts[0].x + 1, pts[0].y + 1))).is_empty(), text
+        cell = region(b, L["prBoundary"]).bbox()               # and inside the cell box, not in a neighbour's area
+        assert cell.left <= pts[0].x <= cell.right and cell.bottom <= pts[0].y <= cell.top, text

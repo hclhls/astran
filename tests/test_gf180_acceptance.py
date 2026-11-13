@@ -23,12 +23,14 @@ def test_four_cells_clean(astran_cli, gf180_pdk, tmp_path, capsys):
 
 @pytest.mark.slow
 def test_flow_is_deterministic(astran_cli, gf180_pdk, tmp_path, capsys):
-    sizes = []
+    cells = ("inv", "nor2")
     for i in range(2):
-        astran_pdk.main(["gf180", "inv", "nor2", "--out", str(tmp_path / str(i)), "--astran", str(astran_cli)])
-        out = capsys.readouterr().out
-        sizes.append([row(out, c).split()[5] for c in ("inv", "nor2")])
-    assert sizes[0] == sizes[1]
+        astran_pdk.main(["gf180", *cells, "--out", str(tmp_path / str(i)), "--astran", str(astran_cli)])
+        capsys.readouterr()
+    for cell in cells:                                         # same input, same geometry on every layer
+        a, b = (load(tmp_path / str(i) / cell / "final.gds") for i in range(2))
+        for name, pair in LAYERS.items():
+            assert (region(a, pair) ^ region(b, pair)).is_empty(), (cell, name)
 
 
 @pytest.mark.slow

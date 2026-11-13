@@ -65,12 +65,16 @@ def parse_spice_subckt(text: str, name: str) -> Subckt:
             if inside:
                 return Subckt(name, ports, devices)
             continue
-        if not inside or not head.startswith("X"):
+        if not inside or head.startswith("."):
             continue
+        if not head.startswith("X"):
+            raise AdapterError(f"{name}: unsupported element {tok[0]} (only X device instances are read)")
         d, g, s, b, model = tok[1:6]
         if model not in MODELS:
             raise AdapterError(f"{name}: device {tok[0]} uses unsupported model {model}")
         par = dict(t.lower().split("=", 1) for t in tok[6:] if "=" in t)
+        if "w" not in par or "l" not in par:
+            raise AdapterError(f"{name}: device {tok[0]} has no W or no L")
         devices.append(Device(tok[0], d, g, s, b, model, _meters_to_um(par["w"]), _meters_to_um(par["l"])))
     raise AdapterError(f"cell {name} not found in the gf180mcu 7t library")
 

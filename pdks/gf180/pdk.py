@@ -17,15 +17,18 @@ LAYERS = {
 
 def _candidates() -> list:
     out = []
-    if os.environ.get("ASTRAN_GF180_DIR"):
-        out.append(Path(os.environ["ASTRAN_GF180_DIR"]))
     root = Path(os.environ.get("PDK_ROOT") or Path.home() / ".ciel")
-    out.append(root / "gf180mcuD")
     out.append(root / "ciel" / "gf180mcu" / "versions" / PINNED_VERSION / "gf180mcuD")
+    out.append(root / "gf180mcuD")
     return out
 
 
 def pdk_dir() -> Path:
+    named = os.environ.get("ASTRAN_GF180_DIR")
+    if named:                                   # asked for by name: never fall back to some other PDK
+        if Path(named).is_dir():
+            return Path(named)
+        raise AdapterError(f"ASTRAN_GF180_DIR={named} is not a directory")
     tried = _candidates()
     for p in tried:
         if p.is_dir():

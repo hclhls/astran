@@ -35,7 +35,7 @@ def write_lvs_netlist(cell: str, out: Path) -> None:
 
 TECH_RUL = Path(__file__).with_name("tech.rul")
 
-# Starting circuit settings (tuned in Task 10).
+# Astran circuit settings, tuned until all four cells were DRC and LVS clean (see README).
 SETTINGS = [
     'set vddnet VDD', 'set gndnet VSS',
     'set celltemplate "Taps close to the boundary"',

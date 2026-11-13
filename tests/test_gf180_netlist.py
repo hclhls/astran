@@ -5,13 +5,13 @@ from pdks.gf180 import netlist, pdk
 
 
 def test_pdk_dir_missing_names_every_path_and_fetch_command(monkeypatch, tmp_path):
-    a, root = tmp_path / "nowhere", tmp_path / "root"
-    monkeypatch.setenv("ASTRAN_GF180_DIR", str(a))
+    root = tmp_path / "root"
+    monkeypatch.delenv("ASTRAN_GF180_DIR", raising=False)
     monkeypatch.setenv("PDK_ROOT", str(root))
     with pytest.raises(AdapterError) as e:
         pdk.pdk_dir()
     msg = str(e.value)
-    assert str(a) in msg and str(root) in msg
+    assert str(root / "gf180mcuD") in msg and str(root / "ciel") in msg
     assert "ciel enable --pdk-family gf180mcu " + pdk.PINNED_VERSION in msg
 
 
@@ -58,3 +58,39 @@ def test_lvs_reference_keeps_the_library_body_pins(gf180_pdk, tmp_path):
 def test_unknown_cell_raises_adapter_error(gf180_pdk, tmp_path):
     with pytest.raises(AdapterError):
         netlist.write_astran_netlist("nosuchcell", tmp_path / "x.sp")
+
+
+SUB = ".SUBCKT gf180mcu_fd_sc_mcu7t5v0__x_1 A Z VDD VNW VPW VSS\n{}\n.ENDS\n"
+
+
+def test_device_that_is_not_an_x_element_is_an_error_not_silently_skipped():
+    text = SUB.format("M0 Z A VSS VPW nfet_06v0 W=8.2e-07 L=6e-07")
+    with pytest.raises(AdapterError, match="M0"):
+        netlist.parse_spice_subckt(text, "gf180mcu_fd_sc_mcu7t5v0__x_1")
+
+
+def test_device_without_width_or_length_is_an_adapter_error():
+    for missing in ("W=8.2e-07", "L=6e-07"):
+        par = "W=8.2e-07 L=6e-07".replace(missing, "").strip()
+        text = SUB.format(f"X0 Z A VSS VPW nfet_06v0 {par}")
+        with pytest.raises(AdapterError, match="X0"):
+            netlist.parse_spice_subckt(text, "gf180mcu_fd_sc_mcu7t5v0__x_1")
+
+
+def test_a_directory_asked_for_by_name_that_does_not_exist_is_an_error(monkeypatch, tmp_path):
+    root = tmp_path / "root"
+    (root / "gf180mcuD").mkdir(parents=True)                  # another PDK is around, but it was not asked for
+    monkeypatch.setenv("ASTRAN_GF180_DIR", str(tmp_path / "typo"))
+    monkeypatch.setenv("PDK_ROOT", str(root))
+    with pytest.raises(AdapterError, match="ASTRAN_GF180_DIR"):
+        pdk.pdk_dir()
+
+
+def test_the_pinned_version_wins_over_an_unpinned_directory(monkeypatch, tmp_path):
+    root = tmp_path / "root"
+    pinned = root / "ciel" / "gf180mcu" / "versions" / pdk.PINNED_VERSION / "gf180mcuD"
+    pinned.mkdir(parents=True)
+    (root / "gf180mcuD").mkdir()
+    monkeypatch.delenv("ASTRAN_GF180_DIR", raising=False)
+    monkeypatch.setenv("PDK_ROOT", str(root))
+    assert pdk.pdk_dir() == pinned
