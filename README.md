@@ -53,3 +53,31 @@ Read the INSTALL.txt file.
 - On GUI 
 
 ![Astran GUI](https://github.com/aziesemer/astran/blob/master/Astran/misc/astran.jpg?raw=true)
+
+## Open PDKs
+
+Astran can generate cells in open PDKs through per-PDK adapters in `pdks/`. The first is SkyWater
+sky130 (`pdks/sky130/`), compared against `sky130_fd_sc_hd`.
+
+```
+nix develop                              # librelane EDA tools, HiGHS, g++, pytest
+make -C Astran -f cli.mk                 # wx-free command-line build: Astran/build/bin/astran-cli
+python3 astran_pdk.py sky130             # inv, nand2, nor2, a21oi: DRC alone and abutted, LVS, area
+python3 astran_pdk.py sky130 nand2 --out out/mine
+```
+
+The sky130A PDK is looked up in `$ASTRAN_SKY130_DIR`, then `${PDK_ROOT:-~/.ciel}/sky130A`, then the ciel
+version pinned in `pdks/sky130/pdk.py`. Intermediate files and reports are kept under `out/sky130/<cell>/`.
+Exit status is 0 only if every cell passes; 2 if the environment is unusable. Result of the default run:
+
+```
+cell   gen  drc   drc-abut  lvs   w×h          ref w×h      area   ref area  ratio
+inv    ok   pass  pass      pass  1.020×3.400  1.380×2.720  3.468  3.754     0.92
+nand2  ok   pass  pass      pass  1.700×3.400  1.380×2.720  5.780  3.754     1.54
+nor2   ok   pass  pass      pass  1.700×3.400  1.380×2.720  5.780  3.754     1.54
+a21oi  ok   pass  pass      pass  2.380×3.400  1.840×2.720  8.092  5.005     1.62
+```
+
+The Astran cells carry their own well taps and are 3.4 um tall (not drop-in with hd, which is
+2.72 um tall and tapless), so the ratio is pessimistic for Astran. See `pdks/sky130/README.md`
+for the details and `pdks/README.md` for how to add a PDK.

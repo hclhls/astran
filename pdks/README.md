@@ -33,3 +33,15 @@ array (self, mirrored self, flipped rows, and each neighbour) that the driver ru
 - Cell names: the user's short name (`inv`) maps to the library cell, to an Astran cell name,
   and to the final top cell name (`layout_name`); each adapter documents its own mapping.
 - Nothing from the PDK is copied into this repository; the adapter locates the installed PDK.
+
+## Adding a PDK
+
+1. Create `pdks/<name>/` with `__init__.py` and `adapter.py` defining exactly the names above.
+2. Locate the installed PDK (environment variable, then standard paths) and raise `AdapterError` listing every
+   path tried if it is missing. Copy nothing from the PDK into this repository.
+3. Write a rule file for Astran (`tech.rul`; the GDSII column accepts `<layer>/<datatype>`; `MET1L` is the label layer).
+4. Convert the library's cell netlists to the Astran SPICE form and to an LVS reference.
+5. Return a complete `.run` script from `astran_script`, ending in `export layout`.
+6. Put everything PDK-specific (derived layers, checks, naming) in the adapter, never in `Astran/src` or the driver.
+7. Make every checker report a crash, timeout or missing report as a failure (`ok=False, count=-1`).
+8. Test the checkers on the foundry's own cells before trusting them on Astran output.
