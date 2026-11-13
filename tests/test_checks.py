@@ -75,3 +75,15 @@ def test_wrong_cell_name_is_a_failure_everywhere(hd_inv, tmp_path):
     k = checks.klayout_drc(hd_inv.gds, "nosuchcell", tmp_path / "k")
     n = checks.netgen_lvs(hd_inv.gds, "nosuchcell", hd_inv.spice, tmp_path / "n")
     assert not k.ok and not n.ok
+
+
+def test_drc_catches_violation_that_only_exists_when_abutted(tmp_path):
+    # li1 bars 0.05 um from each side of the cell edge: legal alone, 0.10 < 0.17 apart at every interface
+    from pdks.common import build_abutment
+    cell = make_gds(tmp_path, {(67, 20): [(0.05, 0.0, 0.22, 1.0), (0.58, 0.0, 0.75, 1.0)]},
+                    cellbox=(0, 0, 0.8, 1.0), name="X_1", filename="cell.gds")
+    assert checks.magic_drc(cell, "X_1", tmp_path / "alone_m").ok
+    assert checks.klayout_drc(cell, "X_1", tmp_path / "alone_k").ok
+    name = build_abutment(cell, "X_1", [], (235, 4), tmp_path / "arr.gds")
+    assert not checks.magic_drc(tmp_path / "arr.gds", name, tmp_path / "arr_m").ok
+    assert not checks.klayout_drc(tmp_path / "arr.gds", name, tmp_path / "arr_k").ok
