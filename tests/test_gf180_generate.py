@@ -1,5 +1,3 @@
-import subprocess
-
 import klayout.db as kdb
 import pytest
 
@@ -29,20 +27,9 @@ def test_astran_script_is_complete(tmp_path):
     assert text.strip().splitlines()[-1].startswith("export layout INV_1 ")
 
 
-@pytest.fixture(scope="module")
-def inv_raw(astran_cli, tmp_path_factory, gf180_pdk):
-    wd = tmp_path_factory.mktemp("gf180_inv_raw")
-    name = adapter.write_astran_netlist("inv", wd / "astran.sp")
-    gds = wd / "raw.gds"
-    (wd / "cell.run").write_text(adapter.astran_script(name, wd / "astran.sp", gds))
-    r = subprocess.run([str(astran_cli), "cell.run"], cwd=wd, capture_output=True, text=True, timeout=900)
-    assert r.returncode == 0, r.stdout
-    return gds
-
-
-def test_inv_generates_raw_gds(inv_raw):
+def test_inv_generates_raw_gds(gf180_inv_raw):
     ly = kdb.Layout()
-    ly.read(str(inv_raw))
+    ly.read(str(gf180_inv_raw))
     top = ly.top_cell()
     for name in ("contact", "poly", "comp", "metal1"):
         li = ly.find_layer(*pdk.LAYERS[name])

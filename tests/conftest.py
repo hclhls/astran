@@ -195,3 +195,15 @@ def ref_inv(tmp_path_factory, gf180_pdk) -> RefCell:
     r.gds, r.spice, r.top = wd / "inv.gds", wd / "inv.spice", "gf180mcu_fd_sc_mcu7t5v0__inv_1"
     r.drc_gds, r.drc_top = wd / "inv_tie.gds", "inv_tie"
     return r
+
+
+@pytest.fixture(scope="session")
+def gf180_inv_raw(astran_cli, tmp_path_factory, gf180_pdk):
+    from pdks.gf180 import adapter
+    wd = tmp_path_factory.mktemp("gf180_inv_raw")
+    name = adapter.write_astran_netlist("inv", wd / "astran.sp")
+    gds = wd / "raw.gds"
+    (wd / "cell.run").write_text(adapter.astran_script(name, wd / "astran.sp", gds))
+    r = subprocess.run([str(astran_cli), "cell.run"], cwd=wd, capture_output=True, text=True, timeout=900)
+    assert r.returncode == 0, r.stdout
+    return gds
